@@ -43,10 +43,50 @@ let demoBets = [
     chatMessages: [],
     outcomes: ["No one makes it", "One person makes it", "Multiple people make it"],
     createdAt: new Date().toISOString()
+  },
+  {
+    id: 3,
+    title: "Test Voting Bet",
+    description: "A simple test bet for voting mechanism",
+    creatorId: 1,
+    participants: [1, 2],
+    participantBets: { 1: "Option A", 2: "Option B" },
+    stakeTokens: 20,
+    status: "voting",
+    votes: {},
+    winner: null,
+    chatMessages: [],
+    outcomes: ["Option A", "Option B"],
+    createdAt: new Date().toISOString()
   }
 ];
 
-let demoInvitations = [];
+let demoInvitations = [
+  {
+    id: 1,
+    betId: 1,
+    fromUserId: 1,
+    toUserId: 4,
+    status: 'pending',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 2,
+    betId: 1,
+    fromUserId: 1,
+    toUserId: 5,
+    status: 'pending',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 3,
+    betId: 2,
+    fromUserId: 5,
+    toUserId: 8,
+    status: 'pending',
+    createdAt: new Date().toISOString()
+  }
+];
 let demoUserProfiles = {};
 let demoCredibilityLogs = [];
 let demoInviteLinks = {};
@@ -86,12 +126,115 @@ const loadFromLocalStorage = (key, defaultValue = []) => {
 
 // Initialize data from localStorage
 const initializeData = () => {
+  console.log('📥 Loading data from localStorage...');
   demoUsers = loadFromLocalStorage(STORAGE_KEYS.USERS, demoUsers);
   demoBets = loadFromLocalStorage(STORAGE_KEYS.BETS, demoBets);
   demoInvitations = loadFromLocalStorage(STORAGE_KEYS.INVITATIONS, demoInvitations);
   demoUserProfiles = loadFromLocalStorage(STORAGE_KEYS.USER_PROFILES, demoUserProfiles);
   demoCredibilityLogs = loadFromLocalStorage(STORAGE_KEYS.CREDIBILITY_LOGS, demoCredibilityLogs);
   demoInviteLinks = loadFromLocalStorage(STORAGE_KEYS.INVITE_LINKS, demoInviteLinks);
+  
+  console.log('📊 Loaded bets from localStorage:', demoBets);
+  
+  // Check if we have the test bet, if not, reset to ensure it's available
+  const hasTestBet = demoBets.some(bet => bet.id === 3 && bet.title === "Test Voting Bet");
+  if (!hasTestBet) {
+    console.log('⚠️ Test bet not found, resetting demo data...');
+    // Force reset to include the test bet
+    demoUsers = [
+      { id: 1, username: 'Maxim', email: 'maxim@example.com', friends: [2, 3, 4, 5, 6, 7, 8, 9], tokens: 1000, credibility: 100 },
+      { id: 2, username: 'Moritz', email: 'moritz@example.com', friends: [1, 3, 4, 5, 6, 7, 8, 9], tokens: 1000, credibility: 100 },
+      { id: 3, username: 'Dominik', email: 'dominik@example.com', friends: [1, 2, 4, 5, 6, 7, 8, 9], tokens: 1000, credibility: 100 },
+      { id: 4, username: 'Niko', email: 'niko@example.com', friends: [1, 2, 3, 5, 6, 7, 8, 9], tokens: 1000, credibility: 100 },
+      { id: 5, username: 'Alex', email: 'alex@example.com', friends: [1, 2, 3, 4, 6, 7, 8, 9], tokens: 1000, credibility: 100 },
+      { id: 6, username: 'Eddy', email: 'eddy@example.com', friends: [1, 2, 3, 4, 5, 7, 8, 9], tokens: 1000, credibility: 100 },
+      { id: 7, username: 'Patrick', email: 'patrick@example.com', friends: [1, 2, 3, 4, 5, 6, 8, 9], tokens: 1000, credibility: 100 },
+      { id: 8, username: 'Human', email: 'human@example.com', friends: [1, 2, 3, 4, 5, 6, 7, 9], tokens: 1000, credibility: 100 },
+      { id: 9, username: 'Vess', email: 'vess@example.com', friends: [1, 2, 3, 4, 5, 6, 7, 8], tokens: 1000, credibility: 100 }
+    ];
+    
+    demoBets = [
+      {
+        id: 1,
+        title: "Bayern wins against Dortmund",
+        description: "Classic German football match",
+        creatorId: 1,
+        participants: [1, 2, 3],
+        participantBets: { 1: "Bayern wins", 2: "Dortmund wins", 3: "Draw" },
+        stakeTokens: 50,
+        status: "active",
+        votes: {},
+        winner: null,
+        chatMessages: [],
+        outcomes: ["Bayern wins", "Dortmund wins", "Draw"],
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: 2,
+        title: "Who can do 100 push-ups?",
+        description: "Fitness challenge among friends",
+        creatorId: 5,
+        participants: [5, 6, 7],
+        participantBets: { 5: "No one makes it", 6: "One person makes it", 7: "Multiple people make it" },
+        stakeTokens: 30,
+        status: "voting",
+        votes: {},
+        winner: null,
+        chatMessages: [],
+        outcomes: ["No one makes it", "One person makes it", "Multiple people make it"],
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: 3,
+        title: "Test Voting Bet",
+        description: "A simple test bet for voting mechanism",
+        creatorId: 1,
+        participants: [1, 2],
+        participantBets: { 1: "Option A", 2: "Option B" },
+        stakeTokens: 20,
+        status: "voting",
+        votes: {},
+        winner: null,
+        chatMessages: [],
+        outcomes: ["Option A", "Option B"],
+        createdAt: new Date().toISOString()
+      }
+    ];
+    
+    demoInvitations = [
+      {
+        id: 1,
+        betId: 1,
+        fromUserId: 1,
+        toUserId: 4,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: 2,
+        betId: 1,
+        fromUserId: 1,
+        toUserId: 5,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: 3,
+        betId: 2,
+        fromUserId: 5,
+        toUserId: 8,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      }
+    ];
+    demoUserProfiles = {};
+    demoCredibilityLogs = [];
+    demoInviteLinks = {};
+    
+    console.log('✅ Demo data reset with test bet included');
+  }
+  
+  console.log('📊 Final bets after initialization:', demoBets);
 };
 
 // Auto-save functionality
@@ -121,9 +264,10 @@ const stopAutoSave = () => {
 export const demoDataService = {
   // Initialize the service
   initialize() {
+    console.log('🚀 Initializing demo data service...');
     initializeData();
     startAutoSave();
-    console.log('Demo data service initialized');
+    console.log('✅ Demo data service initialized');
   },
 
   // Cleanup
@@ -145,6 +289,11 @@ export const demoDataService = {
     const userIndex = demoUsers.findIndex(u => u.id === userId);
     if (userIndex !== -1) {
       demoUsers[userIndex] = { ...demoUsers[userIndex], tokens: newTokens };
+      
+      // Save to localStorage immediately
+      saveToLocalStorage(STORAGE_KEYS.USERS, demoUsers);
+      
+      console.log('✅ User tokens updated and saved:', { userId, newTokens });
       return Promise.resolve(true);
     }
     return Promise.resolve(false);
@@ -167,6 +316,11 @@ export const demoDataService = {
         newCredibility
       });
       
+      // Save to localStorage immediately
+      saveToLocalStorage(STORAGE_KEYS.USERS, demoUsers);
+      saveToLocalStorage(STORAGE_KEYS.CREDIBILITY_LOGS, demoCredibilityLogs);
+      
+      console.log('✅ User credibility updated and saved:', { userId, change, newCredibility });
       return Promise.resolve(true);
     }
     return Promise.resolve(false);
@@ -174,6 +328,7 @@ export const demoDataService = {
 
   // Bet operations
   getBets() {
+    console.log('📊 getBets called, returning:', demoBets);
     return Promise.resolve([...demoBets]);
   },
 
@@ -195,6 +350,11 @@ export const demoDataService = {
     };
     
     demoBets.unshift(newBet);
+    
+    // Save to localStorage immediately
+    saveToLocalStorage(STORAGE_KEYS.BETS, demoBets);
+    
+    console.log('✅ Bet created and saved:', newBet);
     return Promise.resolve(newBet);
   },
 
@@ -202,6 +362,11 @@ export const demoDataService = {
     const betIndex = demoBets.findIndex(b => b.id === betId);
     if (betIndex !== -1) {
       demoBets[betIndex] = { ...demoBets[betIndex], ...updates };
+      
+      // Save to localStorage immediately
+      saveToLocalStorage(STORAGE_KEYS.BETS, demoBets);
+      
+      console.log('✅ Bet updated and saved:', { betId, updates, result: demoBets[betIndex] });
       return Promise.resolve(demoBets[betIndex]);
     }
     return Promise.resolve(null);
@@ -227,6 +392,11 @@ export const demoDataService = {
     };
     
     demoInvitations.push(newInvitation);
+    
+    // Save to localStorage immediately
+    saveToLocalStorage(STORAGE_KEYS.INVITATIONS, demoInvitations);
+    
+    console.log('✅ Invitation created and saved:', newInvitation);
     return Promise.resolve(newInvitation);
   },
 
@@ -234,6 +404,11 @@ export const demoDataService = {
     const invitationIndex = demoInvitations.findIndex(inv => inv.id === invitationId);
     if (invitationIndex !== -1) {
       demoInvitations[invitationIndex] = { ...demoInvitations[invitationIndex], status };
+      
+      // Save to localStorage immediately
+      saveToLocalStorage(STORAGE_KEYS.INVITATIONS, demoInvitations);
+      
+      console.log('✅ Invitation status updated and saved:', { invitationId, status, result: demoInvitations[invitationIndex] });
       return Promise.resolve(true);
     }
     return Promise.resolve(false);
@@ -246,6 +421,11 @@ export const demoDataService = {
 
   updateUserProfile(userId, profileData) {
     demoUserProfiles[userId] = { ...demoUserProfiles[userId], ...profileData };
+    
+    // Save to localStorage immediately
+    saveToLocalStorage(STORAGE_KEYS.USER_PROFILES, demoUserProfiles);
+    
+    console.log('✅ User profile updated and saved:', { userId, profileData });
     return Promise.resolve(true);
   },
 
@@ -271,6 +451,11 @@ export const demoDataService = {
       };
       
       demoBets[betIndex].chatMessages.push(chatMessage);
+      
+      // Save to localStorage immediately
+      saveToLocalStorage(STORAGE_KEYS.BETS, demoBets);
+      
+      console.log('✅ Chat message added and saved:', chatMessage);
       return Promise.resolve(chatMessage);
     }
     return Promise.resolve(null);
@@ -281,6 +466,11 @@ export const demoDataService = {
     const userIndex = demoUsers.findIndex(u => u.id === userId);
     if (userIndex !== -1 && !demoUsers[userIndex].friends.includes(friendId)) {
       demoUsers[userIndex].friends.push(friendId);
+      
+      // Save to localStorage immediately
+      saveToLocalStorage(STORAGE_KEYS.USERS, demoUsers);
+      
+      console.log('✅ Friend added and saved:', { userId, friendId });
       return Promise.resolve(true);
     }
     return Promise.resolve(false);
@@ -290,6 +480,11 @@ export const demoDataService = {
     const userIndex = demoUsers.findIndex(u => u.id === userId);
     if (userIndex !== -1) {
       demoUsers[userIndex].friends = demoUsers[userIndex].friends.filter(id => id !== friendId);
+      
+      // Save to localStorage immediately
+      saveToLocalStorage(STORAGE_KEYS.USERS, demoUsers);
+      
+      console.log('✅ Friend removed and saved:', { userId, friendId });
       return Promise.resolve(true);
     }
     return Promise.resolve(false);
@@ -346,10 +541,50 @@ export const demoDataService = {
         chatMessages: [],
         outcomes: ["No one makes it", "One person makes it", "Multiple people make it"],
         createdAt: new Date().toISOString()
+      },
+      {
+        id: 3,
+        title: "Test Voting Bet",
+        description: "A simple test bet for voting mechanism",
+        creatorId: 1,
+        participants: [1, 2],
+        participantBets: { 1: "Option A", 2: "Option B" },
+        stakeTokens: 20,
+        status: "voting",
+        votes: {},
+        winner: null,
+        chatMessages: [],
+        outcomes: ["Option A", "Option B"],
+        createdAt: new Date().toISOString()
       }
     ];
     
-    demoInvitations = [];
+    demoInvitations = [
+      {
+        id: 1,
+        betId: 1,
+        fromUserId: 1,
+        toUserId: 4,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: 2,
+        betId: 1,
+        fromUserId: 1,
+        toUserId: 5,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: 3,
+        betId: 2,
+        fromUserId: 5,
+        toUserId: 8,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      }
+    ];
     demoUserProfiles = {};
     demoCredibilityLogs = [];
     demoInviteLinks = {};

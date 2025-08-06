@@ -6,7 +6,6 @@ import { useToast } from '../contexts/ToastContext.js';
 function BetDetailView({ bet, currentUser, users, invitations, setInvitations, setBets, bets, onBack, onVote, onStartVoting }) {
   const { showError, showSuccess } = useToast();
   const [newMessage, setNewMessage] = useState('');
-  const [showVoting, setShowVoting] = useState(false);
   const [selectedWinner, setSelectedWinner] = useState('');
   const chatEndRef = useRef(null);
 
@@ -56,13 +55,23 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
   };
 
   const handleVote = () => {
+    console.log('🚨 HANDLE VOTE CLICKED!', { selectedWinner, betId: bet.id, voter: currentUser.username });
+    
     if (!selectedWinner) {
       showError('Please select a winner!');
       return;
     }
 
-    onVote(bet.id, selectedWinner, currentUser.username);
-    setShowVoting(false);
+    console.log('🗳️ About to call onVote with:', { betId: bet.id, winner: selectedWinner, voter: currentUser.username });
+    console.log('🗳️ onVote function type:', typeof onVote);
+    
+    try {
+      onVote(bet.id, selectedWinner, currentUser.username);
+      console.log('✅ onVote called successfully');
+    } catch (error) {
+      console.error('❌ Error calling onVote:', error);
+    }
+    
     setSelectedWinner('');
   };
 
@@ -170,7 +179,7 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
           <div className="bg-white border rounded-xl p-4 shadow-sm">
             <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
               <Vote size={20} className="mr-2" />
-              Abstimmung
+              Voting ({Object.keys(bet.votes || {}).length}/{bet.participants.length} votes)
             </h3>
             
             {!hasVoted(currentUser.username, bet) ? (
@@ -189,7 +198,9 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
                     >
                       <div className="font-medium">{outcome}</div>
                       <div className="text-sm text-gray-500">
-                        Votes: {getVoteCount(outcome, bet)}
+                        Votes: {getVoteCount(outcome, bet)} {getVoteCount(outcome, bet) > 0 && '🗳️'}
+                        {/* Debug info */}
+                        {console.log(`Vote count for ${outcome}:`, getVoteCount(outcome, bet), 'bet votes:', bet.votes)}
                       </div>
                     </button>
                   ))}
@@ -209,10 +220,17 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
                   <div key={index} className="p-3 bg-gray-50 rounded-lg">
                     <div className="font-medium">{outcome}</div>
                     <div className="text-sm text-gray-500">
-                                              Votes: {getVoteCount(outcome, bet)}
+                      Votes: {getVoteCount(outcome, bet)} {getVoteCount(outcome, bet) > 0 && '🗳️'}
+                      {/* Debug info */}
+                      {console.log(`Vote count for ${outcome} (already voted):`, getVoteCount(outcome, bet), 'bet votes:', bet.votes)}
                     </div>
                   </div>
                 ))}
+                <div className="mt-3 p-2 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-blue-700">
+                    Waiting for {bet.participants.length - Object.keys(bet.votes || {}).length} more vote(s)...
+                  </p>
+                </div>
               </div>
             )}
           </div>
@@ -223,12 +241,25 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
           <div className="bg-white border rounded-xl p-4 shadow-sm">
             <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
               <Trophy size={20} className="mr-2 text-yellow-500" />
-              Winner
+              🎉 Winner Announced!
             </h3>
-            <div className="bg-yellow-50 rounded-lg p-3">
-              <div className="font-medium text-yellow-800">{bet.winner}</div>
-              <div className="text-sm text-yellow-600">
+            <div className="bg-yellow-50 rounded-lg p-4 border-2 border-yellow-200">
+              <div className="font-bold text-xl text-yellow-800 mb-2">{bet.winner}</div>
+              <div className="text-sm text-yellow-600 mb-3">
                 Win for all who bet correctly: {Math.floor((bet.stakeTokens * bet.participants.length) * 0.97)} 🪙
+              </div>
+              
+              {/* Show final vote counts */}
+              <div className="mt-3 pt-3 border-t border-yellow-200">
+                <p className="text-sm font-medium text-yellow-700 mb-2">Final Vote Count:</p>
+                <div className="space-y-1">
+                  {bet.outcomes.map((outcome, index) => (
+                    <div key={index} className="flex justify-between text-sm">
+                      <span>{outcome}</span>
+                      <span className="font-medium">{getVoteCount(outcome, bet)} votes</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -251,7 +282,7 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
             className="flex-1 bg-blue-500 text-white p-3 rounded-lg font-semibold hover:bg-blue-600 transition-colors flex items-center justify-center space-x-2"
           >
             <Share2 size={20} />
-            <span>Teilen</span>
+            <span>Share</span>
           </button>
         </div>
 
