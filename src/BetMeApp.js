@@ -1,20 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Users, Clock, Trophy, Vote, ArrowLeft, Check, UserPlus, Link, Copy, MessageCircle, Send, User, Camera, Wallet, Share2, Trash2 } from 'lucide-react';
+import { useToast } from './contexts/ToastContext.js';
 
 // Import utilities and data
 import { 
-  getStatusColor, 
-  getStatusText, 
-  getStatusIcon, 
-  getUserName, 
   getUserTokens, 
-  getFriends, 
-  formatTime, 
-  hasVoted, 
-  getVoteCount,
   calculateMajorityVote
 } from './utils.js';
-import { supabaseService } from './supabaseService.js';
+import { dataService } from './services/dataService.js';
+import { CREDIBILITY_CONFIG } from './constants.js';
 
 // Import components
 import LoginView from './components/LoginView.js';
@@ -25,8 +18,11 @@ import ChooseOutcomeView from './components/ChooseOutcomeView.js';
 import HomeView from './components/HomeView.js';
 import BetDetailView from './components/BetDetailView.js';
 import CredibilityLogView from './components/CredibilityLogView.js';
+import EnvironmentSwitcher from './components/EnvironmentSwitcher.js';
 
 export default function BetMeApp() {
+  const { showError, showSuccess } = useToast();
+  
   // State management
   const [currentView, setCurrentView] = useState('login');
   const [currentUser, setCurrentUser] = useState(null);
@@ -35,34 +31,28 @@ export default function BetMeApp() {
   const [users, setUsers] = useState([]);
   const [invitations, setInvitations] = useState([]);
   const [selectedInvitation, setSelectedInvitation] = useState(null);
-  const [chatMessages, setChatMessages] = useState({});
-  const [newMessage, setNewMessage] = useState('');
+
   const [userProfiles, setUserProfiles] = useState({});
   const [inviteLinks, setInviteLinks] = useState({});
   const [credibilityLogs, setCredibilityLogs] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
   const processedCredibilityBetsRef = useRef(new Set());
 
-  // Credibility system configuration
-  const CREDIBILITY_CONFIG = {
-    VOTE_AGAINST_MAJORITY: 15, // Points lost for voting against majority
-    NO_VOTE: 10, // Points lost for not voting
-    MIN_CREDIBILITY: 0,
-    MAX_CREDIBILITY: 100
-  };
-
-  // Initialize app data from Supabase
+  // Initialize data service and load data
   useEffect(() => {
     const loadData = async () => {
+      setIsLoading(true);
       try {
-        console.log('🔄 Loading data from Supabase...');
+        // Initialize the appropriate data service
+        dataService.initialize();
         
         // Load all data in parallel
         const [usersData, betsData, invitationsData, userProfilesData, credibilityLogsData] = await Promise.all([
-          supabaseService.getUsers(),
-          supabaseService.getBets(),
-          supabaseService.getInvitations(currentUser?.id),
-          supabaseService.getUserProfiles(),
-          currentUser ? supabaseService.getCredibilityLogs(currentUser.id) : Promise.resolve([])
+          dataService.getUsers(),
+          dataService.getBets(),
+          dataService.getInvitations(),
+          dataService.getUserProfiles(),
+          currentUser ? dataService.getCredibilityLogs(currentUser.id) : Promise.resolve([])
         ]);
         
         setUsers(usersData);
@@ -70,55 +60,65 @@ export default function BetMeApp() {
         setInvitations(invitationsData);
         setUserProfiles(userProfilesData);
         setCredibilityLogs(credibilityLogsData);
-        
-        console.log('✅ Data loaded successfully');
       } catch (error) {
-        console.error('❌ Error loading data:', error);
+        console.error('Error loading data:', error);
+        showError('Failed to load data. Please refresh the page.');
+      } finally {
+        setIsLoading(false);
       }
     };
     
     loadData();
-  }, [currentUser?.id]);
+  }, [showError, currentUser]);
 
-  // Set up real-time subscriptions
+  // Set up real-time subscriptions (only for Supabase mode)
   useEffect(() => {
     if (!currentUser) return;
     
     // Subscribe to bets changes
-    const betsSubscription = supabaseService.subscribeToBets((payload) => {
-      console.log('🔄 Bets updated:', payload);
+    const betsSubscription = dataService.subscribeToBets((payload) => {
       setBets(prev => {
         const newBets = [...prev];
-        const index = newBets.findIndex(bet => bet.id === payload.new.id);
-        if (index >= 0) {
-          newBets[index] = payload.new;
+        const existingIndex = newBets.findIndex(bet => bet.id === payload.new.id);
+        
+        if (existingIndex !== -1) {
+          newBets[existingIndex] = payload.new;
         } else {
           newBets.unshift(payload.new);
         }
+        
         return newBets;
       });
     });
-    
+
     // Subscribe to invitations changes
-    const invitationsSubscription = supabaseService.subscribeToInvitations(currentUser.id, (payload) => {
-      console.log('🔄 Invitations updated:', payload);
+    const invitationsSubscription = dataService.subscribeToInvitations(currentUser.id, (payload) => {
       setInvitations(prev => {
         const newInvitations = [...prev];
-        const index = newInvitations.findIndex(inv => inv.id === payload.new.id);
-        if (index >= 0) {
-          newInvitations[index] = payload.new;
+        const existingIndex = newInvitations.findIndex(inv => inv.id === payload.new.id);
+        
+        if (existingIndex !== -1) {
+          newInvitations[existingIndex] = payload.new;
         } else {
           newInvitations.unshift(payload.new);
         }
+        
         return newInvitations;
       });
     });
-    
+
     return () => {
-      betsSubscription?.unsubscribe();
-      invitationsSubscription?.unsubscribe();
+      betsSubscription();
+      invitationsSubscription();
     };
   }, [currentUser]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      dataService.cleanup();
+    };
+  }, []);
 
   // Auto-scroll chat
   useEffect(() => {
@@ -131,6 +131,8 @@ export default function BetMeApp() {
   }, [selectedBet?.chatMessages]);
 
   // Core functions
+
+
   const handleLogin = (username) => {
     const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
     if (user) {
@@ -141,249 +143,10 @@ export default function BetMeApp() {
 
   const updateUserTokens = async (userId, newTokens) => {
     try {
-      const success = await supabaseService.updateUserTokens(userId, newTokens);
-      if (success) {
-        setUsers(prev => prev.map(user => 
-          user.id === userId ? { ...user, tokens: newTokens } : user
-        ));
-        if (currentUser?.id === userId) {
-          setCurrentUser(prev => ({ ...prev, tokens: newTokens }));
-        }
-      }
-    } catch (error) {
-      console.error('Error updating user tokens:', error);
-    }
-  };
-
-  const sendMessage = async (betId, message) => {
-    if (!message.trim()) return;
-    
-    try {
-      const success = await supabaseService.addChatMessage(betId, currentUser.id, message.trim());
-      if (success) {
-        // The real-time subscription will handle updating the UI
-        setNewMessage('');
-      }
-    } catch (error) {
-      console.error('Error sending message:', error);
-    }
-  };
-
-  const createBet = async (betData) => {
-    const stakeTokens = parseInt(betData.stakeTokens) || 0;
-    if (stakeTokens > currentUser.tokens) {
-      alert('Not enough tokens for this stake!');
-      return;
-    }
-
-    try {
-      const newBet = await supabaseService.createBet({
-        title: betData.title,
-        description: betData.description,
-        creator_id: currentUser.id,
-        participants: [currentUser.id],
-        participant_bets: { [currentUser.id]: stakeTokens },
-        stake_tokens: stakeTokens,
-        status: 'active',
-        votes: {},
-        chat_messages: []
-      });
-      
-      if (newBet) {
-        setBets(prev => [newBet, ...prev]);
-        setSelectedBet(newBet);
-        setCurrentView('chooseOutcome');
-        
-        // Create invitations for participants
-        for (const friendId of betData.participants) {
-          await supabaseService.createInvitation({
-            bet_id: newBet.id,
-            from_user_id: currentUser.id,
-            to_user_id: friendId,
-            status: 'pending'
-          });
-        }
-        
-        // Update user tokens
-        await updateUserTokens(currentUser.id, currentUser.tokens - stakeTokens);
-      }
-    } catch (error) {
-      console.error('Error creating bet:', error);
-      alert('Failed to create bet. Please try again.');
-    }
-  };
-  };
-
-  const respondToInvitation = (invitationId, response) => {
-    const invitation = invitations.find(inv => inv.id === invitationId);
-    
-    if (response === 'accepted' && invitation) {
-      const bet = bets.find(b => b.id === invitation.betId);
-      if (bet) {
-        // Prüfen ob User genug Tokens hat
-                 if (bet.stakeTokens > currentUser.tokens) {
-           alert('Not enough tokens for this bet!');
-           return;
-         }
-        
-        // User muss Outcome wählen beim Beitreten
-        setCurrentView('chooseOutcome');
-        setSelectedBet(bet);
-        setSelectedInvitation(invitation);
-        return;
-      }
-    }
-
-    setInvitations(prev => prev.map(inv => 
-      inv.id === invitationId 
-        ? { ...inv, status: response }
-        : inv
-    ));
-  };
-
-  const startVoting = (betId) => {
-    setBets(prev => prev.map(bet => 
-      bet.id === betId ? { ...bet, status: 'voting' } : bet
-    ));
-    
-    // Update selectedBet immediately to show voting interface
-    setSelectedBet(prev => 
-      prev?.id === betId ? { ...prev, status: 'voting' } : prev
-    );
-  };
-
-  const voteForWinner = (betId, winner, voterName) => {
-    setBets(prevBets => prevBets.map(currentBet => {
-      if (currentBet.id === betId) {
-        const newVotes = { ...currentBet.votes, [voterName]: winner };
-        const voteCount = Object.values(newVotes).filter(vote => vote === winner).length;
-        const totalVotes = Object.keys(newVotes).length;
-        const participantCount = currentBet.participants.length;
-        
-        let hasWon = false;
-        if (participantCount === 2) {
-          hasWon = totalVotes === 2 && voteCount >= 1;
-        } else {
-          const majority = Math.floor(participantCount / 2) + 1;
-          hasWon = voteCount >= majority;
-        }
-        
-        if (hasWon) {
-          // Token-Belohnung berechnen - BASIEREND AUF WETTEN, NICHT VOTES!
-          const totalStake = currentBet.stakeTokens * currentBet.participants.length;
-          const appFee = Math.floor(totalStake * 0.03);
-          const winnersReward = totalStake - appFee;
-          
-          const finishedBet = { ...currentBet, votes: newVotes, winner, status: 'completed' };
-          setSelectedBet(finishedBet);
-          
-          // Process credibility for all participants (ONLY ONCE when bet completes)
-          setTimeout(() => {
-            processCredibilityForBet(finishedBet);
-          }, 200);
-          
-          // Belohnung an WETTER (nicht Voter) verteilen
-          setTimeout(() => {
-            // Wer hat auf das Gewinner-Outcome GEWETTET?
-            const winningBettors = Object.entries(currentBet.participantBets || {})
-              .filter(([userId, bet]) => bet === winner)
-              .map(([userId]) => parseInt(userId));
-            
-            if (winningBettors.length > 0) {
-              const rewardPerWinner = Math.floor(winnersReward / winningBettors.length);
-              
-              winningBettors.forEach(userId => {
-                updateUserTokens(userId, getUserTokens(userId, users) + rewardPerWinner);
-              });
-            }
-          }, 100);
-          
-          return finishedBet;
-        }
-        
-        // REMOVED: The tie condition that was causing double credibility processing
-        // Now ties just continue voting without triggering credibility processing
-        
-        const votingBet = { ...currentBet, votes: newVotes };
-        setSelectedBet(votingBet);
-        return votingBet;
-      }
-      return currentBet;
-    }));
-  };
-
-  const getPendingInvitations = (userId) => {
-    return invitations.filter(inv => inv.toUserId === userId && inv.status === 'pending');
-  };
-
-  const inviteUserToBet = (betId, userId) => {
-    // Prüfen ob User bereits Teilnehmer oder schon eingeladen
-    const bet = bets.find(b => b.id === betId);
-    const existingInvitation = invitations.find(inv => 
-      inv.betId === betId && inv.toUserId === userId
-    );
-    
-    if (bet && !bet.participants.includes(userId) && !existingInvitation) {
-      const newInvitation = {
-        id: Date.now() + userId,
-        betId: betId,
-        fromUserId: currentUser.id,
-        toUserId: userId,
-        status: 'pending',
-        createdAt: new Date().toISOString()
-      };
-      
-      setInvitations([...invitations, newInvitation]);
-      return true;
-    }
-    return false;
-  };
-
-  // Profile functions
-  const uploadProfilePhoto = (userId, file) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setUserProfiles(prev => ({
-        ...prev,
-        [userId]: e.target.result
-      }));
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const generateInviteLink = (userId) => {
-    const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const inviteLink = `${window.location.origin}${window.location.pathname}?invite=${inviteCode}&user=${userId}`;
-    setInviteLinks(prev => ({ ...prev, [userId]: inviteLink }));
-    return inviteLink;
-  };
-
-  const copyInviteLink = (link) => {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(link);
-             alert('🔗 Invitation link copied!');
-    }
-  };
-
-  const removeFriend = (userId, friendId) => {
-    setUsers(prevUsers => prevUsers.map(user => {
-      if (user.id === userId || user.id === friendId) {
-        return {
-          ...user,
-          friends: user.friends.filter(id => id !== userId && id !== friendId)
-        };
-      }
-      return user;
-    }));
-  };
-
-  // Credibility management functions
-  const updateUserCredibility = async (userId, change, reason, betId = null) => {
-    try {
-      const success = await supabaseService.updateUserCredibility(userId, change, reason, betId);
+      const success = await dataService.updateUserTokens(userId, newTokens);
       if (success) {
         // Reload user data to get updated credibility
-        const updatedUsers = await supabaseService.getUsers();
+        const updatedUsers = await dataService.getUsers();
         setUsers(updatedUsers);
         
         if (currentUser?.id === userId) {
@@ -395,7 +158,251 @@ export default function BetMeApp() {
         
         // Reload credibility logs
         if (currentUser) {
-          const updatedLogs = await supabaseService.getCredibilityLogs(currentUser.id);
+          const updatedLogs = await dataService.getCredibilityLogs(currentUser.id);
+          setCredibilityLogs(updatedLogs);
+        }
+      }
+    } catch (error) {
+      console.error('Error updating user credibility:', error);
+    }
+  };
+
+
+
+  const createBet = async (betData) => {
+    const stakeTokens = parseInt(betData.stakeTokens) || 0;
+    if (stakeTokens > currentUser.tokens) {
+      showError('Not enough tokens for this stake!');
+      return;
+    }
+
+    try {
+      // Create bet using data service
+      const newBet = await dataService.createBet({
+        title: betData.title,
+        description: betData.description,
+        creatorId: currentUser.id,
+        participants: [currentUser.id],
+        participantBets: { [currentUser.id]: betData.outcomes[0] || 'Outcome 1' },
+        stakeTokens: stakeTokens,
+        status: 'active',
+        votes: {},
+        chatMessages: [],
+        outcomes: betData.outcomes
+      });
+      
+      if (newBet) {
+        // Add to local state
+        setBets(prev => [newBet, ...prev]);
+        setSelectedBet(newBet);
+        setCurrentView('chooseOutcome');
+        
+        // Create invitations for participants
+        for (const friendId of betData.participants) {
+          await dataService.createInvitation({
+            betId: newBet.id,
+            fromUserId: currentUser.id,
+            toUserId: friendId,
+            status: 'pending'
+          });
+        }
+        
+        // Update user tokens
+        await updateUserTokens(currentUser.id, currentUser.tokens - stakeTokens);
+        
+        showSuccess('Bet created successfully!');
+      }
+    } catch (error) {
+      console.error('Error creating bet:', error);
+      showError('Failed to create bet. Please try again.');
+    }
+  };
+
+  const respondToInvitation = async (invitationId, response) => {
+    const invitation = invitations.find(inv => inv.id === invitationId);
+    
+    if (response === 'accepted' && invitation) {
+      const bet = bets.find(b => b.id === invitation.betId);
+      if (bet) {
+        // Check if user has enough tokens
+        if (bet.stakeTokens > currentUser.tokens) {
+          showError('Not enough tokens for this bet!');
+          return;
+        }
+        
+        // User must choose outcome when joining
+        setCurrentView('chooseOutcome');
+        setSelectedBet(bet);
+        setSelectedInvitation(invitation);
+        return;
+      }
+    }
+
+    // Update invitation status
+    await dataService.updateInvitationStatus(invitationId, response);
+    
+    // Update local state
+    setInvitations(prev => prev.map(inv => 
+      inv.id === invitationId 
+        ? { ...inv, status: response }
+        : inv
+    ));
+  };
+
+  const startVoting = async (betId) => {
+    // Update bet status in data service
+    await dataService.updateBet(betId, { status: 'voting' });
+    
+    // Update local state
+    setBets(prev => prev.map(bet => 
+      bet.id === betId ? { ...bet, status: 'voting' } : bet
+    ));
+    
+    // Update selectedBet immediately to show voting interface
+    setSelectedBet(prev => 
+      prev?.id === betId ? { ...prev, status: 'voting' } : prev
+    );
+  };
+
+  const voteForWinner = async (betId, winner, voterName) => {
+    const currentBet = bets.find(b => b.id === betId);
+    if (!currentBet) return;
+
+    const newVotes = { ...currentBet.votes, [voterName]: winner };
+    const voteCount = Object.values(newVotes).filter(vote => vote === winner).length;
+    const totalVotes = Object.keys(newVotes).length;
+    const participantCount = currentBet.participants.length;
+    
+    let hasWon = false;
+    if (participantCount === 2) {
+      hasWon = totalVotes === 2 && voteCount >= 1;
+    } else {
+      const majority = Math.floor(participantCount / 2) + 1;
+      hasWon = voteCount >= majority;
+    }
+    
+    if (hasWon) {
+      // Calculate token reward - BASED ON BETS, NOT VOTES!
+      const totalStake = currentBet.stakeTokens * currentBet.participants.length;
+      const appFee = Math.floor(totalStake * 0.03);
+      const winnersReward = totalStake - appFee;
+      
+      const finishedBet = { ...currentBet, votes: newVotes, winner, status: 'completed' };
+      
+      // Update bet in data service
+      await dataService.updateBet(betId, { votes: newVotes, winner, status: 'completed' });
+      
+      setSelectedBet(finishedBet);
+      
+      // Process credibility for all participants (ONLY ONCE when bet completes)
+      setTimeout(() => {
+        processCredibilityForBet(finishedBet);
+      }, 200);
+      
+      // Distribute reward to BETTORS (not voters)
+      setTimeout(() => {
+        // Who bet on the winning outcome?
+        const winningBettors = Object.entries(currentBet.participantBets || {})
+          .filter(([userId, bet]) => bet === winner)
+          .map(([userId]) => parseInt(userId));
+        
+        if (winningBettors.length > 0) {
+          const rewardPerWinner = Math.floor(winnersReward / winningBettors.length);
+          
+          winningBettors.forEach(userId => {
+            updateUserTokens(userId, getUserTokens(userId, users) + rewardPerWinner);
+          });
+        }
+      }, 100);
+    } else {
+      // Update votes in data service
+      await dataService.updateBet(betId, { votes: newVotes });
+      
+      // Update local state
+      setBets(prevBets => prevBets.map(bet => 
+        bet.id === betId ? { ...bet, votes: newVotes } : bet
+      ));
+      
+      setSelectedBet(prev => 
+        prev?.id === betId ? { ...prev, votes: newVotes } : prev
+      );
+    }
+  };
+
+  const getPendingInvitations = (userId) => {
+    return invitations.filter(inv => inv.toUserId === userId && inv.status === 'pending');
+  };
+
+
+
+  // Profile functions
+  const uploadProfilePhoto = async (userId, file) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const profileData = { photoUrl: e.target.result };
+      await dataService.updateUserProfile(userId, profileData);
+      
+      setUserProfiles(prev => ({
+        ...prev,
+        [userId]: e.target.result
+      }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const generateInviteLink = async (userId) => {
+    const inviteLink = await dataService.generateInviteLink(userId);
+    setInviteLinks(prev => ({ ...prev, [userId]: inviteLink }));
+    return inviteLink;
+  };
+
+  const copyInviteLink = (link) => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(link);
+      showSuccess('🔗 Invitation link copied!');
+    }
+  };
+
+  const removeFriend = async (userId, friendId) => {
+    const success = await dataService.removeFriend(userId, friendId);
+    if (success) {
+      // Reload users to get updated friends list
+      const updatedUsers = await dataService.getUsers();
+      setUsers(updatedUsers);
+      
+      // Update current user if needed
+      if (currentUser?.id === userId) {
+        const updatedUser = updatedUsers.find(u => u.id === userId);
+        if (updatedUser) {
+          setCurrentUser(updatedUser);
+        }
+      }
+      
+      showSuccess('Friend removed successfully!');
+    } else {
+      showError('Failed to remove friend. Please try again.');
+    }
+  };
+
+  // Credibility management functions
+  const updateUserCredibility = async (userId, change, reason, betId = null) => {
+    try {
+      const success = await dataService.updateUserCredibility(userId, change, reason, betId);
+      if (success) {
+        // Reload user data to get updated credibility
+        const updatedUsers = await dataService.getUsers();
+        setUsers(updatedUsers);
+        
+        if (currentUser?.id === userId) {
+          const updatedUser = updatedUsers.find(u => u.id === userId);
+          if (updatedUser) {
+            setCurrentUser(updatedUser);
+          }
+        }
+        
+        // Reload credibility logs
+        if (currentUser) {
+          const updatedLogs = await dataService.getCredibilityLogs(currentUser.id);
           setCredibilityLogs(updatedLogs);
         }
       }
@@ -407,7 +414,6 @@ export default function BetMeApp() {
   const processCredibilityForBet = (bet) => {
     // Prevent multiple processing of the same bet using a ref (immune to React double execution)
     if (processedCredibilityBetsRef.current.has(bet.id)) {
-      console.log(`Credibility already processed for bet ${bet.id} - SKIPPING`);
       return;
     }
 
@@ -417,8 +423,6 @@ export default function BetMeApp() {
 
     const majorityVote = calculateMajorityVote(bet.votes);
     if (!majorityVote) return;
-
-    console.log(`Processing credibility for bet ${bet.id}, majority: ${majorityVote}`);
 
     // Mark this bet as processed IMMEDIATELY using ref
     processedCredibilityBetsRef.current.add(bet.id);
@@ -431,11 +435,8 @@ export default function BetMeApp() {
       
       const participantVote = bet.votes[participant.username];
       
-      console.log(`Participant ${participant.username} voted: ${participantVote}, majority: ${majorityVote}`);
-      
       if (!participantVote) {
         // User didn't vote
-        console.log(`No vote penalty for ${participant.username}`);
         updateUserCredibility(
           participantId, 
           -CREDIBILITY_CONFIG.NO_VOTE, 
@@ -444,15 +445,12 @@ export default function BetMeApp() {
         );
       } else if (participantVote !== majorityVote) {
         // User voted against majority
-        console.log(`Vote against majority penalty for ${participant.username}`);
         updateUserCredibility(
           participantId, 
           -CREDIBILITY_CONFIG.VOTE_AGAINST_MAJORITY, 
           'Voted against majority', 
           bet.id
         );
-      } else {
-        console.log(`No penalty for ${participant.username} - voted with majority`);
       }
     });
   };
@@ -467,6 +465,7 @@ export default function BetMeApp() {
       <ProfileView 
         currentUser={currentUser}
         users={users}
+        bets={bets}
         userProfiles={userProfiles}
         inviteLinks={inviteLinks}
         onBack={() => setCurrentView('home')}
@@ -520,10 +519,10 @@ export default function BetMeApp() {
         currentUser={currentUser}
         invitation={selectedInvitation}
         onOutcomeChosen={(outcome) => {
-          // Tokens abziehen
+          // Deduct tokens
           updateUserTokens(currentUser.id, currentUser.tokens - selectedBet.stakeTokens);
           
-          // User zur Wette hinzufügen mit seinem gewählten Outcome
+          // Add user to bet with their chosen outcome
           setBets(prev => prev.map(b => 
             b.id === selectedBet.id 
               ? { 
@@ -539,7 +538,7 @@ export default function BetMeApp() {
               : b
           ));
           
-          // Einladung als akzeptiert markieren falls vorhanden
+          // Mark invitation as accepted if present
           if (selectedInvitation) {
             setInvitations(prev => prev.map(inv => 
               inv.id === selectedInvitation.id 
@@ -577,29 +576,36 @@ export default function BetMeApp() {
   // Home view
   if (currentView === 'home') {
     return (
-      <HomeView 
-        currentUser={currentUser}
-        bets={bets}
-        users={users}
-        invitations={invitations}
-        onLogout={() => {setCurrentUser(null); setCurrentView('login');}}
-        onCreateBet={() => setCurrentView('create')}
-        onViewInvitations={() => setCurrentView('invitations')}
-        onViewProfile={() => setCurrentView('profile')}
-        onViewCredibility={() => setCurrentView('credibility')}
-        onViewBet={(bet) => {
-          setSelectedBet(bet);
-          setCurrentView('detail');
-        }}
-      />
+      <>
+        <HomeView 
+          currentUser={currentUser}
+          bets={bets}
+          users={users}
+          invitations={invitations}
+          isLoading={isLoading}
+          onLogout={() => {setCurrentUser(null); setCurrentView('login');}}
+          onCreateBet={() => setCurrentView('create')}
+          onViewInvitations={() => setCurrentView('invitations')}
+          onViewProfile={() => setCurrentView('profile')}
+          onViewCredibility={() => setCurrentView('credibility')}
+          onViewBet={(bet) => {
+            setSelectedBet(bet);
+            setCurrentView('detail');
+          }}
+        />
+        <EnvironmentSwitcher />
+      </>
     );
   }
 
   // Fallback
   return (
-    <div className="max-w-md mx-auto bg-white min-h-screen p-6">
-      <h1>View not implemented yet</h1>
-      <button onClick={() => setCurrentView('home')}>Back to Home</button>
-    </div>
+    <>
+      <div className="max-w-md mx-auto bg-white min-h-screen p-6">
+        <h1>View not implemented yet</h1>
+        <button onClick={() => setCurrentView('home')}>Back to Home</button>
+      </div>
+      <EnvironmentSwitcher />
+    </>
   );
 }
