@@ -250,8 +250,8 @@ export default function BetMeApp() {
         title: betData.title,
         description: betData.description,
         creatorId: currentUser.id,
-        participants: [currentUser.id], // Creator is always first participant
-        participantBets: { [currentUser.id]: betData.outcomes[0] || 'Outcome 1' },
+        participants: betData.participants, // Include creator and selected friends
+        participantBets: betData.participantBets || {}, // Use the participantBets from form
         stakeTokens: stakeTokens,
         status: BET_STATUS.ACTIVE,
         votes: {},
@@ -265,8 +265,9 @@ export default function BetMeApp() {
 
       console.log('✅ Bet created:', newBet);
 
-      // Create invitations for all selected friends
-      const invitationPromises = betData.participants.map(friendId => 
+      // Create invitations for all selected friends (excluding creator)
+      const friendsToInvite = betData.participants.filter(id => id !== currentUser.id);
+      const invitationPromises = friendsToInvite.map(friendId => 
         dataService.createInvitation({
           betId: newBet.id,
           fromUserId: currentUser.id,
