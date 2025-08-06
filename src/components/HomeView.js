@@ -1,8 +1,9 @@
 import React from 'react';
 import { Plus, Users, User, Trophy, MessageCircle } from 'lucide-react';
 import { getStatusColor, getStatusText, getStatusIcon, getUserName, getCredibilityColor, getCredibilityBadge } from '../utils.js';
+import LoadingSpinner from './LoadingSpinner.js';
 
-function HomeView({ currentUser, bets, users, invitations, onLogout, onCreateBet, onViewInvitations, onViewProfile, onViewCredibility, onViewBet }) {
+function HomeView({ currentUser, bets, users, invitations, onLogout, onCreateBet, onViewInvitations, onViewProfile, onViewCredibility, onViewBet, isLoading = false }) {
   const userBets = bets.filter(bet => bet.participants.includes(currentUser.id));
   const pendingInvitations = invitations.filter(inv => 
     inv.toUserId === currentUser.id && inv.status === 'pending'
@@ -18,8 +19,8 @@ function HomeView({ currentUser, bets, users, invitations, onLogout, onCreateBet
             <div className="flex items-center space-x-2 text-blue-200 text-xs">
               <span>💰 {currentUser.tokens} Tokens</span>
               <span>•</span>
-              <span className={getCredibilityColor(currentUser.credibility)}>
-                🎯 {currentUser.credibility}/100 Credibility
+              <span className={getCredibilityColor(currentUser.credibility || 100)}>
+                🎯 {currentUser.credibility || 100}/100 Credibility
               </span>
             </div>
           </div>
@@ -74,11 +75,13 @@ function HomeView({ currentUser, bets, users, invitations, onLogout, onCreateBet
       <div className="px-4 pb-4 space-y-4">
         <h2 className="text-lg font-semibold text-gray-800">My Bets</h2>
         
-        {userBets.length === 0 ? (
+        {isLoading ? (
+          <LoadingSpinner size="lg" text="Loading bets..." />
+        ) : userBets.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             <Trophy size={48} className="mx-auto mb-4 opacity-50" />
-                         <p>No bets available.</p>
-             <p className="text-sm">Create your first bet!</p>
+            <p>No bets available.</p>
+            <p className="text-sm">Create your first bet!</p>
           </div>
         ) : (
           userBets.map(currentBet => (

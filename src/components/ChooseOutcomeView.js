@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Trophy } from 'lucide-react';
+import { useToast } from '../contexts/ToastContext.js';
 
 function ChooseOutcomeView({ bet, currentUser, invitation, onOutcomeChosen, onBack }) {
+  const { showError } = useToast();
   const [selectedOutcome, setSelectedOutcome] = useState('');
 
   const handleSubmit = () => {
     if (!selectedOutcome) {
-      alert('Bitte wähle ein Ergebnis aus!');
+      showError('Please select an outcome!');
       return;
     }
     onOutcomeChosen(selectedOutcome);
@@ -23,8 +25,8 @@ function ChooseOutcomeView({ bet, currentUser, invitation, onOutcomeChosen, onBa
             <ArrowLeft size={24} />
           </button>
           <div>
-            <h1 className="text-2xl font-bold">Ergebnis wählen</h1>
-            <p className="text-blue-100 text-sm">Wofür setzt du?</p>
+            <h1 className="text-2xl font-bold">Choose Outcome</h1>
+            <p className="text-blue-100 text-sm">What are you betting on?</p>
           </div>
         </div>
       </div>
@@ -37,7 +39,7 @@ function ChooseOutcomeView({ bet, currentUser, invitation, onOutcomeChosen, onBa
             <p className="text-blue-700 text-sm mb-3">{bet.description}</p>
           )}
                      <div className="text-sm">
-             <p className="text-blue-600">Token-Einsatz:</p>
+             <p className="text-blue-600">Token Stake:</p>
              <p className="font-medium text-blue-800">💰 {bet.stakeTokens}</p>
            </div>
         </div>
@@ -46,7 +48,7 @@ function ChooseOutcomeView({ bet, currentUser, invitation, onOutcomeChosen, onBa
         <div>
           <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
             <Trophy size={20} className="mr-2" />
-            Wähle dein Ergebnis
+            Choose Your Outcome
           </h3>
           
           <div className="space-y-3">
@@ -62,7 +64,7 @@ function ChooseOutcomeView({ bet, currentUser, invitation, onOutcomeChosen, onBa
               >
                 <div className="font-medium">{outcome}</div>
                 <div className="text-sm text-gray-500 mt-1">
-                  {selectedOutcome === outcome ? '✓ Ausgewählt' : 'Klicken zum Auswählen'}
+                  {selectedOutcome === outcome ? '✓ Selected' : 'Click to select'}
                 </div>
               </button>
             ))}
@@ -71,11 +73,11 @@ function ChooseOutcomeView({ bet, currentUser, invitation, onOutcomeChosen, onBa
 
         {/* Token Info */}
         <div className="bg-yellow-50 rounded-xl p-4">
-          <h4 className="font-semibold text-yellow-800 mb-2">Token-Info</h4>
+          <h4 className="font-semibold text-yellow-800 mb-2">Token Info</h4>
           <div className="text-sm text-yellow-700">
-            <p>• Dein aktueller Kontostand: <span className="font-medium">{currentUser.tokens} 🪙</span></p>
-            <p>• Nach der Teilnahme: <span className="font-medium">{currentUser.tokens - bet.stakeTokens} 🪙</span></p>
-            <p>• Gewinn bei richtigem Tipp: <span className="font-medium">{Math.floor((bet.stakeTokens * bet.participants.length) * 0.97)} 🪙</span></p>
+            <p>• Your current balance: <span className="font-medium">{currentUser.tokens} 🪙</span></p>
+            <p>• After participation: <span className="font-medium">{currentUser.tokens - bet.stakeTokens} 🪙</span></p>
+            <p>• Win with correct bet: <span className="font-medium">{Math.floor((bet.stakeTokens * bet.participants.length) * 0.97)} 🪙</span></p>
           </div>
         </div>
 
@@ -85,7 +87,7 @@ function ChooseOutcomeView({ bet, currentUser, invitation, onOutcomeChosen, onBa
           disabled={!selectedOutcome}
           className="w-full bg-blue-500 text-white p-4 rounded-xl font-semibold hover:bg-blue-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
         >
-          {selectedOutcome ? `Auf "${selectedOutcome}" setzen` : 'Ergebnis auswählen'}
+          {selectedOutcome ? `Bet on "${selectedOutcome}"` : 'Select outcome'}
         </button>
       </div>
     </div>

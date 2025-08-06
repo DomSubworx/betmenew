@@ -1,11 +1,16 @@
 import React from 'react';
 import { ArrowLeft, Camera, Wallet, Share2, Users, User, Copy, Trash2 } from 'lucide-react';
-import { getUserName, getFriends } from '../utils.js';
+import { getFriends } from '../utils.js';
 
-function ProfileView({ currentUser, users, userProfiles, inviteLinks, onBack, onUploadPhoto, onGenerateInvite, onCopyInvite, onRemoveFriend }) {
+function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBack, onUploadPhoto, onGenerateInvite, onCopyInvite, onRemoveFriend }) {
   const friends = getFriends(currentUser.id, users);
   const currentProfilePhoto = userProfiles[currentUser.id];
   const currentInviteLink = inviteLinks[currentUser.id];
+
+  // Calculate active bets for current user
+  const activeBets = bets ? bets.filter(bet => 
+    bet.participants.includes(currentUser.id) && bet.status === 'active'
+  ).length : 0;
 
   return (
     <div className="max-w-md mx-auto bg-white min-h-screen">
@@ -19,7 +24,7 @@ function ProfileView({ currentUser, users, userProfiles, inviteLinks, onBack, on
             <ArrowLeft size={24} />
           </button>
           <div>
-            <h1 className="text-2xl font-bold">Profil</h1>
+            <h1 className="text-2xl font-bold">Profile</h1>
             <p className="text-purple-100 text-sm">{currentUser.username}</p>
           </div>
         </div>
@@ -28,10 +33,10 @@ function ProfileView({ currentUser, users, userProfiles, inviteLinks, onBack, on
       <div className="p-6 space-y-6">
         {/* Profile Photo Section */}
         <div className="bg-white border rounded-xl p-6 shadow-sm">
-          <h2 className="text-lg font-semibold mb-4 flex items-center">
-            <Camera size={20} className="mr-2" />
-            Profilbild
-          </h2>
+                      <h2 className="text-lg font-semibold mb-4 flex items-center">
+              <Camera size={20} className="mr-2" />
+              Profile Photo
+            </h2>
           
           <div className="flex items-center space-x-4">
             <div className="relative">
@@ -65,11 +70,11 @@ function ProfileView({ currentUser, users, userProfiles, inviteLinks, onBack, on
                 htmlFor="profile-photo-input"
                 className="bg-purple-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-purple-600 transition-colors cursor-pointer inline-block"
               >
-                Foto hochladen
+                Upload Photo
               </label>
-              <p className="text-sm text-gray-500 mt-1">
-                {currentProfilePhoto ? 'Foto aktualisieren' : 'Noch kein Foto'}
-              </p>
+                              <p className="text-sm text-gray-500 mt-1">
+                  {currentProfilePhoto ? 'Update photo' : 'No photo yet'}
+                </p>
             </div>
           </div>
         </div>
@@ -84,13 +89,13 @@ function ProfileView({ currentUser, users, userProfiles, inviteLinks, onBack, on
           <div className="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-lg p-4 text-white">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm opacity-90">Aktueller Kontostand</p>
+                <p className="text-sm opacity-90">Current Balance</p>
                 <p className="text-3xl font-bold">{currentUser.tokens} 🪙</p>
               </div>
               <div className="text-right">
                 <p className="text-sm opacity-90">Status</p>
                 <p className="text-lg font-semibold">
-                  {currentUser.tokens > 500 ? '💰 Reich' : currentUser.tokens > 100 ? '💪 Gut' : '⚠️ Niedrig'}
+                  {currentUser.tokens > 500 ? '💰 Rich' : currentUser.tokens > 100 ? '💪 Good' : '⚠️ Low'}
                 </p>
               </div>
             </div>
@@ -98,13 +103,13 @@ function ProfileView({ currentUser, users, userProfiles, inviteLinks, onBack, on
           
           <div className="mt-4 grid grid-cols-2 gap-3">
             <div className="bg-gray-50 rounded-lg p-3 text-center">
-              <p className="text-sm text-gray-600">Aktive Wetten</p>
+              <p className="text-sm text-gray-600">Active Bets</p>
               <p className="text-xl font-bold text-gray-800">
-                {users.filter(user => user.id === currentUser.id)[0]?.friends?.length || 0}
+                {activeBets}
               </p>
             </div>
             <div className="bg-gray-50 rounded-lg p-3 text-center">
-              <p className="text-sm text-gray-600">Freunde</p>
+              <p className="text-sm text-gray-600">Friends</p>
               <p className="text-xl font-bold text-gray-800">
                 {friends.length}
               </p>
@@ -116,13 +121,13 @@ function ProfileView({ currentUser, users, userProfiles, inviteLinks, onBack, on
         <div className="bg-white border rounded-xl p-6 shadow-sm">
           <h2 className="text-lg font-semibold mb-4 flex items-center">
             <Share2 size={20} className="mr-2" />
-            Freunde einladen
+                          Invite Friends
           </h2>
           
           <div className="space-y-3">
             {currentInviteLink ? (
               <div className="bg-purple-50 rounded-lg p-3">
-                <p className="text-sm text-purple-600 font-medium mb-2">Dein Einladungslink:</p>
+                <p className="text-sm text-purple-600 font-medium mb-2">Your invitation link:</p>
                 <div className="flex items-center space-x-2">
                   <input
                     type="text"
@@ -144,12 +149,12 @@ function ProfileView({ currentUser, users, userProfiles, inviteLinks, onBack, on
                 className="w-full bg-purple-500 text-white p-3 rounded-lg font-semibold hover:bg-purple-600 transition-colors flex items-center justify-center space-x-2"
               >
                 <Share2 size={20} />
-                <span>Einladungslink erstellen</span>
+                <span>Create Invitation Link</span>
               </button>
             )}
             
             <p className="text-sm text-gray-500">
-              Teile diesen Link mit deinen Freunden, um sie direkt zu deiner Freundesliste hinzuzufügen.
+              Share this link with your friends to add them directly to your friends list.
             </p>
           </div>
         </div>
@@ -158,14 +163,14 @@ function ProfileView({ currentUser, users, userProfiles, inviteLinks, onBack, on
         <div className="bg-white border rounded-xl p-6 shadow-sm">
           <h2 className="text-lg font-semibold mb-4 flex items-center">
             <Users size={20} className="mr-2" />
-            Meine Freunde ({friends.length})
+            My Friends ({friends.length})
           </h2>
           
           {friends.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <Users size={48} className="mx-auto mb-4 opacity-50" />
-              <p>Noch keine Freunde</p>
-              <p className="text-sm">Erstelle einen Einladungslink um Freunde hinzuzufügen!</p>
+              <p>No friends yet</p>
+              <p className="text-sm">Create an invitation link to add friends!</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -192,7 +197,7 @@ function ProfileView({ currentUser, users, userProfiles, inviteLinks, onBack, on
                   <button
                     onClick={() => onRemoveFriend(currentUser.id, friend.id)}
                     className="text-red-500 hover:text-red-700 transition-colors"
-                    title="Freund entfernen"
+                    title="Remove friend"
                   >
                     <Trash2 size={16} />
                   </button>

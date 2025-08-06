@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Users, Vote, Trophy, MessageCircle, Send, Share2, UserPlus } from 'lucide-react';
 import { getUserName, getStatusColor, getStatusText, getStatusIcon, hasVoted, getVoteCount, formatTime } from '../utils.js';
+import { useToast } from '../contexts/ToastContext.js';
 
 function BetDetailView({ bet, currentUser, users, invitations, setInvitations, setBets, bets, onBack, onVote, onStartVoting }) {
+  const { showError, showSuccess } = useToast();
   const [newMessage, setNewMessage] = useState('');
   const [showVoting, setShowVoting] = useState(false);
   const [selectedWinner, setSelectedWinner] = useState('');
@@ -50,12 +52,12 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
     };
 
     setInvitations(prev => [...prev, newInvitation]);
-    alert(`Invitation sent to ${getUserName(userId, users)}!`);
+    showSuccess(`Invitation sent to ${getUserName(userId, users)}!`);
   };
 
   const handleVote = () => {
     if (!selectedWinner) {
-      alert('Please select a winner!');
+      showError('Please select a winner!');
       return;
     }
 
@@ -68,7 +70,7 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
     const shareUrl = `${window.location.origin}${window.location.pathname}?bet=${bet.id}`;
     if (navigator.clipboard) {
       navigator.clipboard.writeText(shareUrl);
-      alert('🔗 Bet link copied!');
+      showSuccess('🔗 Bet link copied!');
     }
   };
 
@@ -107,7 +109,7 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
                 <span>{getStatusText(bet.status)}</span>
               </span>
               <span className="text-purple-100 text-sm">
-                {bet.participants.length} Teilnehmer
+                {bet.participants.length} Participants
               </span>
             </div>
           </div>
@@ -128,13 +130,13 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
               <p className="font-medium">{totalPot} 🪙</p>
             </div>
             <div>
-              <p className="text-gray-500">Einsatz:</p>
+              <p className="text-gray-500">Stake:</p>
               <p className="font-medium">{bet.stakeTokens} 🪙</p>
             </div>
           </div>
 
           <div className="text-xs text-gray-500">
-            App-Fee: {appFee} 🪙 • Gewinn: {winnersReward} 🪙
+            App Fee: {appFee} 🪙 • Win: {winnersReward} 🪙
           </div>
         </div>
 
@@ -142,7 +144,7 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
         <div className="bg-white border rounded-xl p-4 shadow-sm">
           <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
             <Users size={20} className="mr-2" />
-            Teilnehmer ({bet.participants.length})
+            Participants ({bet.participants.length})
           </h3>
           <div className="space-y-2">
             {bet.participants.map(participantId => {
@@ -153,7 +155,7 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
                   <div>
                     <div className="font-medium">{participant?.username}</div>
                     {userBet && (
-                      <div className="text-sm text-gray-500">Setzt auf: {userBet}</div>
+                      <div className="text-sm text-gray-500">Betting on: {userBet}</div>
                     )}
                   </div>
                   <div className="text-sm text-gray-500">💰 {participant?.tokens}</div>
@@ -173,7 +175,7 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
             
             {!hasVoted(currentUser.username, bet) ? (
               <div className="space-y-3">
-                <p className="text-sm text-gray-600">Wähle den Gewinner:</p>
+                <p className="text-sm text-gray-600">Choose the winner:</p>
                 <div className="space-y-2">
                   {bet.outcomes.map((outcome, index) => (
                     <button
@@ -187,7 +189,7 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
                     >
                       <div className="font-medium">{outcome}</div>
                       <div className="text-sm text-gray-500">
-                        Stimmen: {getVoteCount(outcome, bet)}
+                        Votes: {getVoteCount(outcome, bet)}
                       </div>
                     </button>
                   ))}
@@ -197,17 +199,17 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
                   disabled={!selectedWinner}
                   className="w-full bg-purple-500 text-white p-3 rounded-lg font-semibold hover:bg-purple-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
                 >
-                  Stimme abgeben
+                  Submit Vote
                 </button>
               </div>
             ) : (
               <div className="space-y-2">
-                <p className="text-sm text-gray-600">Du hast bereits abgestimmt!</p>
+                <p className="text-sm text-gray-600">You have already voted!</p>
                 {bet.outcomes.map((outcome, index) => (
                   <div key={index} className="p-3 bg-gray-50 rounded-lg">
                     <div className="font-medium">{outcome}</div>
                     <div className="text-sm text-gray-500">
-                      Stimmen: {getVoteCount(outcome, bet)}
+                                              Votes: {getVoteCount(outcome, bet)}
                     </div>
                   </div>
                 ))}
@@ -221,12 +223,12 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
           <div className="bg-white border rounded-xl p-4 shadow-sm">
             <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
               <Trophy size={20} className="mr-2 text-yellow-500" />
-              Gewinner
+              Winner
             </h3>
             <div className="bg-yellow-50 rounded-lg p-3">
               <div className="font-medium text-yellow-800">{bet.winner}</div>
               <div className="text-sm text-yellow-600">
-                Gewinn für alle, die richtig getippt haben: {Math.floor((bet.stakeTokens * bet.participants.length) * 0.97)} 🪙
+                Win for all who bet correctly: {Math.floor((bet.stakeTokens * bet.participants.length) * 0.97)} 🪙
               </div>
             </div>
           </div>
@@ -240,7 +242,7 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
               className="flex-1 bg-purple-500 text-white p-3 rounded-lg font-semibold hover:bg-purple-600 transition-colors flex items-center justify-center space-x-2"
             >
               <Vote size={20} />
-              <span>Abstimmung starten</span>
+              <span>Start Voting</span>
             </button>
           )}
           
@@ -258,7 +260,7 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
           <div className="bg-white border rounded-xl p-4 shadow-sm">
             <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
               <UserPlus size={20} className="mr-2" />
-              Freunde einladen
+              Invite Friends
             </h3>
             <div className="grid grid-cols-2 gap-2">
               {availableUsers.map(user => (
@@ -302,8 +304,8 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
             ) : (
               <div className="text-center text-gray-500 py-8">
                 <MessageCircle size={48} className="mx-auto mb-2 opacity-50" />
-                <p>Noch keine Nachrichten</p>
-                <p className="text-sm">Starte die Konversation!</p>
+                <p>No messages yet</p>
+                <p className="text-sm">Start the conversation!</p>
               </div>
             )}
             <div ref={chatEndRef} />
@@ -316,7 +318,7 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                placeholder="Nachricht schreiben..."
+                placeholder="Write a message..."
                 className="flex-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               />
               <button

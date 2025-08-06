@@ -5,7 +5,7 @@ function LoginView({ users, onLogin }) {
     <div className="max-w-md mx-auto bg-white min-h-screen">
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
         <h1 className="text-3xl font-bold text-center">Bet Me If You Can</h1>
-        <p className="text-center text-blue-100 mt-2">Wähle deinen Benutzer</p>
+        <p className="text-center text-blue-100 mt-2">Choose your user</p>
       </div>
 
       <div className="p-6">
@@ -26,8 +26,8 @@ function LoginView({ users, onLogin }) {
         </div>
 
         <div className="mt-8 text-center text-gray-500 text-sm">
-          <p>Alle Benutzer sind mit allen anderen befreundet</p>
-          <p>Jeder startet mit 1000 Tokens</p>
+          <p>All users are friends with each other</p>
+          <p>Everyone starts with 1000 tokens</p>
         </div>
       </div>
     </div>
