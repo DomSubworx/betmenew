@@ -1,0 +1,337 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { ArrowLeft, Users, Vote, Trophy, MessageCircle, Send, Share2, UserPlus } from 'lucide-react';
+import { getUserName, getStatusColor, getStatusText, getStatusIcon, hasVoted, getVoteCount, formatTime } from '../utils.js';
+
+function BetDetailView({ bet, currentUser, users, invitations, setInvitations, setBets, bets, onBack, onVote, onStartVoting }) {
+  const [newMessage, setNewMessage] = useState('');
+  const [showVoting, setShowVoting] = useState(false);
+  const [selectedWinner, setSelectedWinner] = useState('');
+  const chatEndRef = useRef(null);
+
+  const scrollToBottom = () => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [bet.chatMessages]);
+
+  const sendMessage = () => {
+    if (!newMessage.trim()) return;
+
+    const message = {
+      id: Date.now(),
+      userId: currentUser.id,
+      username: currentUser.username,
+      message: newMessage.trim(),
+      timestamp: new Date().toISOString()
+    };
+
+    setBets(prev => prev.map(b => 
+      b.id === bet.id 
+        ? { 
+            ...b, 
+            chatMessages: [...(b.chatMessages || []), message]
+          }
+        : b
+    ));
+
+    setNewMessage('');
+  };
+
+  const inviteUserToBet = (betId, userId) => {
+    const newInvitation = {
+      id: Date.now(),
+      betId: betId,
+      fromUserId: currentUser.id,
+      toUserId: userId,
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    };
+
+    setInvitations(prev => [...prev, newInvitation]);
+    alert(`Invitation sent to ${getUserName(userId, users)}!`);
+  };
+
+  const handleVote = () => {
+    if (!selectedWinner) {
+      alert('Please select a winner!');
+      return;
+    }
+
+    onVote(bet.id, selectedWinner, currentUser.username);
+    setShowVoting(false);
+    setSelectedWinner('');
+  };
+
+  const shareLink = () => {
+    const shareUrl = `${window.location.origin}${window.location.pathname}?bet=${bet.id}`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(shareUrl);
+      alert('🔗 Bet link copied!');
+    }
+  };
+
+  const isUserInvited = (userId) => {
+    return invitations.some(inv => 
+      inv.betId === bet.id && inv.toUserId === userId && inv.status === 'pending'
+    );
+  };
+
+  const availableUsers = users.filter(user => 
+    !bet.participants.includes(user.id) && 
+    !isUserInvited(user.id) &&
+    user.id !== currentUser.id
+  );
+
+  const totalPot = bet.stakeTokens * bet.participants.length;
+  const appFee = Math.floor(totalPot * 0.03);
+  const winnersReward = totalPot - appFee;
+
+  return (
+    <div className="max-w-md mx-auto bg-white min-h-screen">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white p-6">
+        <div className="flex items-center space-x-4">
+          <button 
+            onClick={onBack}
+            className="text-white hover:text-purple-100"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <div className="flex-1">
+            <h1 className="text-xl font-bold truncate">{bet.title}</h1>
+            <div className="flex items-center space-x-2 mt-1">
+              <span className={`px-2 py-1 rounded-full text-xs font-medium flex items-center space-x-1 ${getStatusColor(bet.status)}`}>
+                {getStatusIcon(bet.status)}
+                <span>{getStatusText(bet.status)}</span>
+              </span>
+              <span className="text-purple-100 text-sm">
+                {bet.participants.length} Teilnehmer
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-4 space-y-4">
+        {/* Bet Info */}
+        <div className="bg-white border rounded-xl p-4 shadow-sm">
+          <h2 className="font-semibold text-gray-800 mb-2">{bet.title}</h2>
+          {bet.description && (
+            <p className="text-gray-600 text-sm mb-3">{bet.description}</p>
+          )}
+          
+          <div className="grid grid-cols-2 gap-4 text-sm mb-3">
+            <div>
+              <p className="text-gray-500">Pot:</p>
+              <p className="font-medium">{totalPot} 🪙</p>
+            </div>
+            <div>
+              <p className="text-gray-500">Einsatz:</p>
+              <p className="font-medium">{bet.stakeTokens} 🪙</p>
+            </div>
+          </div>
+
+          <div className="text-xs text-gray-500">
+            App-Fee: {appFee} 🪙 • Gewinn: {winnersReward} 🪙
+          </div>
+        </div>
+
+        {/* Participants */}
+        <div className="bg-white border rounded-xl p-4 shadow-sm">
+          <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
+            <Users size={20} className="mr-2" />
+            Teilnehmer ({bet.participants.length})
+          </h3>
+          <div className="space-y-2">
+            {bet.participants.map(participantId => {
+              const participant = users.find(u => u.id === participantId);
+              const userBet = bet.participantBets?.[participantId];
+              return (
+                <div key={participantId} className="flex justify-between items-center p-2 bg-gray-50 rounded-lg">
+                  <div>
+                    <div className="font-medium">{participant?.username}</div>
+                    {userBet && (
+                      <div className="text-sm text-gray-500">Setzt auf: {userBet}</div>
+                    )}
+                  </div>
+                  <div className="text-sm text-gray-500">💰 {participant?.tokens}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Voting Section */}
+        {bet.status === 'voting' && (
+          <div className="bg-white border rounded-xl p-4 shadow-sm">
+            <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
+              <Vote size={20} className="mr-2" />
+              Abstimmung
+            </h3>
+            
+            {!hasVoted(currentUser.username, bet) ? (
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600">Wähle den Gewinner:</p>
+                <div className="space-y-2">
+                  {bet.outcomes.map((outcome, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setSelectedWinner(outcome)}
+                      className={`w-full p-3 rounded-lg border-2 transition-colors text-left ${
+                        selectedWinner === outcome
+                          ? 'border-purple-500 bg-purple-50 text-purple-700'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="font-medium">{outcome}</div>
+                      <div className="text-sm text-gray-500">
+                        Stimmen: {getVoteCount(outcome, bet)}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={handleVote}
+                  disabled={!selectedWinner}
+                  className="w-full bg-purple-500 text-white p-3 rounded-lg font-semibold hover:bg-purple-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+                >
+                  Stimme abgeben
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600">Du hast bereits abgestimmt!</p>
+                {bet.outcomes.map((outcome, index) => (
+                  <div key={index} className="p-3 bg-gray-50 rounded-lg">
+                    <div className="font-medium">{outcome}</div>
+                    <div className="text-sm text-gray-500">
+                      Stimmen: {getVoteCount(outcome, bet)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Winner Section */}
+        {bet.status === 'completed' && bet.winner && (
+          <div className="bg-white border rounded-xl p-4 shadow-sm">
+            <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
+              <Trophy size={20} className="mr-2 text-yellow-500" />
+              Gewinner
+            </h3>
+            <div className="bg-yellow-50 rounded-lg p-3">
+              <div className="font-medium text-yellow-800">{bet.winner}</div>
+              <div className="text-sm text-yellow-600">
+                Gewinn für alle, die richtig getippt haben: {Math.floor((bet.stakeTokens * bet.participants.length) * 0.97)} 🪙
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex space-x-3">
+          {bet.status === 'active' && bet.creatorId === currentUser.id && (
+            <button
+              onClick={() => onStartVoting(bet.id)}
+              className="flex-1 bg-purple-500 text-white p-3 rounded-lg font-semibold hover:bg-purple-600 transition-colors flex items-center justify-center space-x-2"
+            >
+              <Vote size={20} />
+              <span>Abstimmung starten</span>
+            </button>
+          )}
+          
+          <button
+            onClick={shareLink}
+            className="flex-1 bg-blue-500 text-white p-3 rounded-lg font-semibold hover:bg-blue-600 transition-colors flex items-center justify-center space-x-2"
+          >
+            <Share2 size={20} />
+            <span>Teilen</span>
+          </button>
+        </div>
+
+        {/* Invite Users */}
+        {bet.status === 'active' && availableUsers.length > 0 && (
+          <div className="bg-white border rounded-xl p-4 shadow-sm">
+            <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
+              <UserPlus size={20} className="mr-2" />
+              Freunde einladen
+            </h3>
+            <div className="grid grid-cols-2 gap-2">
+              {availableUsers.map(user => (
+                <button
+                  key={user.id}
+                  onClick={() => inviteUserToBet(bet.id, user.id)}
+                  className="p-3 rounded-lg border-2 border-gray-200 hover:border-purple-300 transition-colors text-left"
+                >
+                  <div className="font-medium">{user.username}</div>
+                  <div className="text-sm text-gray-500">💰 {user.tokens} Tokens</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Chat Section */}
+        <div className="bg-white border rounded-xl shadow-sm">
+          <div className="p-4 border-b">
+            <h3 className="font-semibold text-gray-800 flex items-center">
+              <MessageCircle size={20} className="mr-2" />
+              Chat ({bet.chatMessages?.length || 0})
+            </h3>
+          </div>
+          
+          <div className="h-64 overflow-y-auto p-4 space-y-3">
+            {bet.chatMessages && bet.chatMessages.length > 0 ? (
+              bet.chatMessages.map((msg, index) => (
+                <div key={index} className={`flex ${msg.userId === currentUser.id ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-xs p-3 rounded-lg ${
+                    msg.userId === currentUser.id 
+                      ? 'bg-purple-500 text-white' 
+                      : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    <div className="text-xs opacity-75 mb-1">{msg.username}</div>
+                    <div className="text-sm">{msg.message}</div>
+                    <div className="text-xs opacity-75 mt-1">{formatTime(msg.timestamp)}</div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center text-gray-500 py-8">
+                <MessageCircle size={48} className="mx-auto mb-2 opacity-50" />
+                <p>Noch keine Nachrichten</p>
+                <p className="text-sm">Starte die Konversation!</p>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+          
+          <div className="p-4 border-t">
+            <div className="flex space-x-2">
+              <input
+                type="text"
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                placeholder="Nachricht schreiben..."
+                className="flex-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+              <button
+                onClick={sendMessage}
+                disabled={!newMessage.trim()}
+                className="p-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+              >
+                <Send size={20} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default BetDetailView; 
