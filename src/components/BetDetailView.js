@@ -269,7 +269,10 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
         <div className="flex space-x-3">
           {bet.status === 'active' && bet.creatorId === currentUser.id && (
             <button
-              onClick={() => onStartVoting(bet.id)}
+              onClick={() => {
+                console.log('🚨 START VOTING BUTTON CLICKED!', { betId: bet.id, currentStatus: bet.status });
+                onStartVoting(bet.id);
+              }}
               className="flex-1 bg-purple-500 text-white p-3 rounded-lg font-semibold hover:bg-purple-600 transition-colors flex items-center justify-center space-x-2"
             >
               <Vote size={20} />

@@ -462,17 +462,41 @@ export default function BetMeApp() {
     try {
       console.log('🗳️ Starting voting for bet:', betId);
       
-      await dataService.updateBet(betId, { status: BET_STATUS.VOTING });
+      // Find the current bet
+      const currentBet = bets.find(b => b.id === betId);
+      if (!currentBet) {
+        console.error('❌ Bet not found:', betId);
+        showError('Bet not found!');
+        return;
+      }
+
+      // Update bet status immediately for UI responsiveness
+      const updatedBet = { ...currentBet, status: BET_STATUS.VOTING };
+      console.log('🗳️ Updated bet for voting:', updatedBet);
       
-      // Refresh data to get updated bet status
-      await refreshAllData();
+      // Force immediate UI update
+      setBets(prev => {
+        console.log('🗳️ Updating bets state for voting start, previous:', prev);
+        const newBets = prev.map(b => b.id === betId ? updatedBet : b);
+        console.log('🗳️ New bets state after voting start:', newBets);
+        return newBets;
+      });
+      
+      // Also update selectedBet if it's the current bet being viewed
+      if (selectedBet && selectedBet.id === betId) {
+        setSelectedBet(updatedBet);
+      }
+      
+      // Save to data service
+      await dataService.updateBet(betId, { status: BET_STATUS.VOTING });
+      console.log('🗳️ Voting started successfully in data service');
       
       showSuccess('Voting started! All participants can now vote.');
     } catch (error) {
       console.error('❌ Error starting voting:', error);
       showError('Failed to start voting. Please try again.');
     }
-  }, [refreshAllData, showError, showSuccess]);
+  }, [bets, selectedBet, setSelectedBet, showError, showSuccess]);
 
   /**
    * Submit a vote for a bet
