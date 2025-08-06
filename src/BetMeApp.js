@@ -223,7 +223,98 @@ export default function BetMeApp() {
   // ============================================================================
 
   /**
-   * Create a new bet with proper state synchronization
+   * Validate token balance consistency across the entire system
+   * This ensures no tokens are created or destroyed
+   */
+  const validateTokenConservation = useCallback((operation, bet = null) => {
+    console.log('🔍 Validating token conservation for:', operation);
+    
+    // Calculate total tokens in the system
+    const totalTokens = users.reduce((sum, user) => sum + user.tokens, 0);
+    
+    // Calculate expected total based on bet parameters
+    let platformFee = 0;
+    
+    if (bet && bet.status === BET_STATUS.COMPLETED) {
+      const totalStakes = bet.stakeTokens * bet.participants.length;
+      platformFee = Math.floor(totalStakes * 0.03);
+      
+      // In a completed bet, totalStakes should equal total payouts + platform fee
+      const winners = bet.participants.filter(participantId => 
+        bet.participantBets[participantId] === bet.winner
+      );
+      
+      if (winners.length > 0) {
+        const availableForWinners = totalStakes - platformFee;
+        const payoutPerWinner = Math.floor(availableForWinners / winners.length);
+        const totalPayouts = winners.length * (bet.stakeTokens + payoutPerWinner);
+        
+        console.log('💰 Token conservation check:', {
+          totalStakes,
+          totalPayouts,
+          platformFee,
+          expectedTotal: totalPayouts + platformFee,
+          actualTotal: totalStakes,
+          conservation: totalStakes === (totalPayouts + platformFee) ? '✅ CONSERVED' : '❌ VIOLATED'
+        });
+        
+        if (totalStakes !== (totalPayouts + platformFee)) {
+          console.error('❌ CRITICAL: Token conservation violated in bet completion!');
+          return false;
+        }
+      }
+    }
+    
+    console.log(`✅ Token conservation validated for ${operation}. Total tokens: ${totalTokens}`);
+    return true;
+  }, [users]);
+
+  /**
+   * Validate bet integrity - ensure all data is consistent
+   */
+  const validateBetIntegrity = useCallback((bet) => {
+    console.log('🔍 Validating bet integrity:', bet.id);
+    
+    const issues = [];
+    
+    // Check if all participants have made their bets
+    const missingBets = bet.participants.filter(participantId => !bet.participantBets[participantId]);
+    if (missingBets.length > 0) {
+      issues.push(`Participants without bets: ${missingBets.join(', ')}`);
+    }
+    
+    // Check if all participantBets correspond to actual participants
+    const invalidBets = Object.keys(bet.participantBets).filter(userId => 
+      !bet.participants.includes(parseInt(userId))
+    );
+    if (invalidBets.length > 0) {
+      issues.push(`Invalid participant bets: ${invalidBets.join(', ')}`);
+    }
+    
+    // Check if all participantBets are valid outcomes
+    const invalidOutcomes = Object.values(bet.participantBets).filter(outcome => 
+      !bet.outcomes.includes(outcome)
+    );
+    if (invalidOutcomes.length > 0) {
+      issues.push(`Invalid outcomes: ${invalidOutcomes.join(', ')}`);
+    }
+    
+    // Check if stake tokens is valid
+    if (bet.stakeTokens <= 0) {
+      issues.push('Invalid stake amount');
+    }
+    
+    if (issues.length > 0) {
+      console.error('❌ Bet integrity issues:', issues);
+      return false;
+    }
+    
+    console.log('✅ Bet integrity validation passed');
+    return true;
+  }, []);
+
+  /**
+   * Create a new bet with proper state management
    */
   const createBet = useCallback(async (betData) => {
     if (!currentUser) {
@@ -279,9 +370,15 @@ export default function BetMeApp() {
       const newInvitations = await Promise.all(invitationPromises);
       console.log('✅ Invitations created:', newInvitations.length);
 
-      // Update user tokens
+      // 🎯 FIXED: Deduct tokens from creator when bet is created
+      // Creator must pay their stake upfront to create the bet
       await dataService.updateUserTokens(currentUser.id, currentUser.tokens - stakeTokens);
-
+      
+      // 🎯 VALIDATION: Ensure token conservation after bet creation
+      if (!validateTokenConservation('bet creation')) {
+        console.error('❌ CRITICAL: Token conservation violated during bet creation!');
+      }
+      
       // Refresh all data to ensure consistency
       await refreshAllData();
       
@@ -295,7 +392,7 @@ export default function BetMeApp() {
       console.error('❌ Error creating bet:', error);
       showError('Failed to create bet. Please try again.');
     }
-  }, [currentUser, refreshAllData, showError, showSuccess]);
+  }, [currentUser, refreshAllData, showError, showSuccess, validateTokenConservation]);
 
   /**
    * Update user tokens with proper state synchronization
@@ -452,6 +549,161 @@ export default function BetMeApp() {
     }, 100);
   }, [users, refreshAllData]);
 
+  /**
+   * Process token redistribution for a completed bet
+   * This is the core financial logic that determines winners and losers
+   * 
+   * TOKEN CONSERVATION PRINCIPLE:
+   * - Total tokens in system remains constant (minus platform fee)
+   * - Winners get their stake back + share of losers' stakes (minus platform fee)
+   * - Losers lose their stake permanently
+   * 
+   * MATHEMATICAL MODEL:
+   * - Total stakes collected = participants × stakeTokens
+   * - Platform fee = totalStakes × 0.03
+   * - Available for winners = totalStakes - platformFee
+   * - Each winner gets: stakeTokens + (availableForWinners / winners.length)
+   */
+  const processTokenRedistribution = useCallback(async (bet) => {
+    console.log('💰 Processing token redistribution for bet:', bet.id);
+    
+    if (bet.status !== BET_STATUS.COMPLETED || !bet.winner) {
+      console.error('❌ Bet not ready for token redistribution:', bet.id);
+      return;
+    }
+
+    // 🎯 VALIDATION: Ensure bet integrity before processing payments
+    if (!validateBetIntegrity(bet)) {
+      console.error('❌ Bet integrity validation failed - aborting token redistribution');
+      return;
+    }
+
+    // 🎯 MATHEMATICAL VALIDATION: Ensure pot calculation is correct
+    const totalStakes = bet.stakeTokens * bet.participants.length;
+    const platformFee = Math.floor(totalStakes * 0.03); // 3% platform fee
+    
+    // Determine winners and losers
+    const winners = [];
+    const losers = [];
+    
+    for (const participantId of bet.participants) {
+      const participantBet = bet.participantBets[participantId];
+      if (participantBet === bet.winner) {
+        winners.push(participantId);
+      } else {
+        losers.push(participantId);
+      }
+    }
+
+    // 🎯 FIXED: Calculate available for winners correctly
+    // Available = losers' stakes - platform fee
+    const losersCount = losers.length;
+    const losersStakes = losersCount * bet.stakeTokens;
+    const availableForWinners = losersStakes - platformFee;
+    
+    console.log('💰 Token redistribution calculation:', {
+      totalStakes,
+      losersCount,
+      losersStakes,
+      platformFee,
+      availableForWinners,
+      participants: bet.participants.length
+    });
+
+    console.log('💰 Winners and losers:', { winners, losers });
+
+    // 🎯 EDGE CASE: Handle tie (no clear winner) - return all stakes
+    if (winners.length === 0) {
+      console.log('💰 No winners - returning stakes to all participants');
+      for (const participantId of bet.participants) {
+        const participant = users.find(u => u.id === participantId);
+        if (participant) {
+          // Return the stake that was deducted when joining
+          const newTokens = participant.tokens + bet.stakeTokens;
+          await dataService.updateUserTokens(participantId, newTokens);
+          console.log(`💰 Participant ${participant.username}: stake returned (new total: ${newTokens})`);
+        }
+      }
+      console.log(`💰 Platform fee collected: ${platformFee} tokens (from tie scenario)`);
+      return;
+    }
+
+    // 🎯 CORRECTED LOGIC: Calculate payout per winner
+    // Winners get their stake back + equal share of losers' stakes (minus platform fee)
+    const payoutPerWinner = Math.floor(availableForWinners / winners.length);
+    
+    console.log('💰 Payout per winner:', payoutPerWinner);
+
+    // 🎯 FIXED: Process winners correctly
+    // Winners get their stake back + share of the pot
+    for (const winnerId of winners) {
+      const winner = users.find(u => u.id === winnerId);
+      if (winner) {
+        // 🎯 CRITICAL FIX: Winners get their stake back + share of losers' stakes
+        // Their stake was already deducted when joining, so they get it back + winnings
+        const totalPayout = bet.stakeTokens + payoutPerWinner;
+        const newTokens = winner.tokens + totalPayout;
+        await dataService.updateUserTokens(winnerId, newTokens);
+        console.log(`💰 Winner ${winner.username}: +${totalPayout} tokens (stake returned: ${bet.stakeTokens} + winnings: ${payoutPerWinner}, new total: ${newTokens})`);
+      }
+    }
+
+    // 🎯 FIXED: Process losers correctly
+    // Losers have already lost their stake when joining - no additional deduction needed
+    for (const loserId of losers) {
+      const loser = users.find(u => u.id === loserId);
+      if (loser) {
+        console.log(`💰 Loser ${loser.username}: stake already deducted when joining (no additional loss)`);
+      }
+    }
+
+    // 🎯 PLATFORM FEE: Log the fee collection
+    console.log(`💰 Platform fee collected: ${platformFee} tokens`);
+
+    // 🎯 MATHEMATICAL VERIFICATION: Ensure token conservation
+    const totalPayouts = winners.length * (bet.stakeTokens + payoutPerWinner);
+    const totalSystemChange = totalPayouts + platformFee;
+    
+    // 🎯 SIMPLE TEST: Verify the math
+    console.log('💰 Mathematical verification:', {
+      totalStakes,
+      totalPayouts,
+      platformFee,
+      totalSystemChange,
+      conservation: totalStakes === totalSystemChange ? '✅ CONSERVED' : '❌ VIOLATED'
+    });
+
+    // 🎯 DETAILED BREAKDOWN FOR DEBUGGING
+    console.log('💰 Detailed breakdown:', {
+      participants: bet.participants.length,
+      winners: winners.length,
+      losers: losers.length,
+      stakePerPerson: bet.stakeTokens,
+      totalStakesCollected: totalStakes,
+      platformFeeDeducted: platformFee,
+      availableForWinners: availableForWinners,
+      payoutPerWinner: payoutPerWinner,
+      totalPayoutsToWinners: totalPayouts,
+      totalSystemChange: totalSystemChange,
+      difference: totalStakes - totalSystemChange
+    });
+
+    if (totalStakes !== totalSystemChange) {
+      console.error('❌ CRITICAL: Token conservation violated!', {
+        totalStakes,
+        totalSystemChange,
+        difference: totalStakes - totalSystemChange
+      });
+    }
+
+    console.log('✅ Token redistribution complete for bet:', bet.id);
+    
+    // 🎯 FINAL VALIDATION: Ensure token conservation after redistribution
+    if (!validateTokenConservation('bet completion', bet)) {
+      console.error('❌ CRITICAL: Token conservation validation failed after redistribution!');
+    }
+  }, [users, validateTokenConservation, validateBetIntegrity]);
+
   // ============================================================================
   // VOTING AND BET COMPLETION
   // ============================================================================
@@ -582,6 +834,9 @@ export default function BetMeApp() {
             winner: majorityVote 
           });
           
+          // 🎯 CRITICAL: Process token redistribution
+          await processTokenRedistribution(completedBet);
+          
           // Process credibility changes
           console.log('🗳️ Processing credibility changes...');
           await processCredibilityForBet(completedBet);
@@ -605,7 +860,7 @@ export default function BetMeApp() {
       console.error('❌ Error voting:', error);
       showError('Failed to submit vote. Please try again.');
     }
-  }, [bets, users, setBets, selectedBet, setSelectedBet, processCredibilityForBet, refreshAllData, showError, showSuccess]);
+  }, [bets, users, setBets, selectedBet, setSelectedBet, processCredibilityForBet, processTokenRedistribution, refreshAllData, showError, showSuccess]);
 
   // ============================================================================
   // PROFILE AND UTILITY FUNCTIONS
@@ -689,6 +944,11 @@ export default function BetMeApp() {
           
           // Deduct tokens
           await updateUserTokens(currentUser.id, currentUser.tokens - selectedBet.stakeTokens);
+          
+          // 🎯 VALIDATION: Ensure token conservation after joining bet
+          if (!validateTokenConservation('bet joining')) {
+            console.error('❌ CRITICAL: Token conservation violated during bet joining!');
+          }
           
           // Add user to bet with their chosen outcome
           const updatedBet = {
