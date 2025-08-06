@@ -1,33 +1,34 @@
 // Utility functions for BetMe app
 import { Clock, Vote, Trophy } from 'lucide-react';
+import { BET_STATUS, CREDIBILITY_LEVELS } from './constants.js';
 
 // Status utility functions
 export const getStatusColor = (status) => {
   switch(status) {
-    case 'active': return 'bg-green-100 text-green-800';
-    case 'voting': return 'bg-yellow-100 text-yellow-800';
-    case 'completed': return 'bg-blue-100 text-blue-800';
-    case 'finished': return 'bg-blue-100 text-blue-800';
+    case BET_STATUS.ACTIVE: return 'bg-green-100 text-green-800';
+    case BET_STATUS.VOTING: return 'bg-yellow-100 text-yellow-800';
+    case BET_STATUS.COMPLETED: return 'bg-blue-100 text-blue-800';
+    case BET_STATUS.FINISHED: return 'bg-blue-100 text-blue-800';
     default: return 'bg-gray-100 text-gray-800';
   }
 };
 
 export const getStatusText = (status) => {
   switch(status) {
-    case 'active': return 'Active';
-    case 'voting': return 'Voting';
-    case 'completed': return 'Completed';
-    case 'finished': return 'Finished';
+    case BET_STATUS.ACTIVE: return 'Active';
+    case BET_STATUS.VOTING: return 'Voting';
+    case BET_STATUS.COMPLETED: return 'Completed';
+    case BET_STATUS.FINISHED: return 'Finished';
     default: return 'Unknown';
   }
 };
 
 export const getStatusIcon = (status) => {
   switch(status) {
-    case 'active': return <Clock size={16} />;
-    case 'voting': return <Vote size={16} />;
-    case 'completed': return <Trophy size={16} />;
-    case 'finished': return <Trophy size={16} />;
+    case BET_STATUS.ACTIVE: return <Clock size={16} />;
+    case BET_STATUS.VOTING: return <Vote size={16} />;
+    case BET_STATUS.COMPLETED: return <Trophy size={16} />;
+    case BET_STATUS.FINISHED: return <Trophy size={16} />;
     default: return <Clock size={16} />;
   }
 };
@@ -35,7 +36,7 @@ export const getStatusIcon = (status) => {
 // User utility functions
 export const getUserName = (userId, users) => {
   const user = users.find(u => u.id === userId);
-  return user ? user.username : 'Unbekannt';
+  return user ? user.username : 'Unknown';
 };
 
 export const getUserTokens = (userId, users) => {
@@ -97,11 +98,12 @@ export const getCredibilityColor = (credibility) => {
 };
 
 export const getCredibilityBadge = (credibility) => {
-  if (credibility >= 90) return { text: 'Trustworthy', color: 'bg-green-100 text-green-800' };
-  if (credibility >= 70) return { text: 'Good', color: 'bg-blue-100 text-blue-800' };
-  if (credibility >= 50) return { text: 'Average', color: 'bg-yellow-100 text-yellow-800' };
-  if (credibility >= 30) return { text: 'Low', color: 'bg-orange-100 text-orange-800' };
-  return { text: 'Very Low', color: 'bg-red-100 text-red-800' };
+  for (const level of Object.values(CREDIBILITY_LEVELS)) {
+    if (credibility >= level.min) {
+      return { text: level.text, color: level.color };
+    }
+  }
+  return { text: CREDIBILITY_LEVELS.VERY_LOW.text, color: CREDIBILITY_LEVELS.VERY_LOW.color };
 };
 
 export const calculateMajorityVote = (votes) => {
