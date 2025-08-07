@@ -44,18 +44,7 @@ function EnvironmentSwitcher({ onEnvironmentChange }) {
           </span>
         </div>
         
-        {/* Environment Info */}
-        <div className="text-xs text-gray-500">
-          {isDemoMode() ? (
-            <p>• Local storage persistence<br/>
-               • 9 demo users<br/>
-               • No network required</p>
-          ) : (
-            <p>• Supabase database<br/>
-               • Real-time subscriptions<br/>
-               • Network required</p>
-          )}
-        </div>
+
         
         {/* Actions */}
         <div className="space-y-1 pt-2">

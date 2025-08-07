@@ -348,8 +348,8 @@ export const demoDataService = {
       title: betData.title,
       description: betData.description,
       creatorId: betData.creatorId,
-      participants: betData.participants || [betData.creatorId],
-      participantBets: betData.participantBets || {},
+      participants: betData.participants || [betData.creatorId], // Only creator initially
+      participantBets: betData.participantBets || {}, // Only creator's bet initially
       stakeTokens: betData.stakeTokens,
       status: betData.status || 'active',
       votes: betData.votes || {},

@@ -366,8 +366,8 @@ export default function BetMeApp() {
         title: betData.title,
         description: betData.description,
         creatorId: currentUser.id,
-        participants: betData.participants, // Include creator and selected friends
-        participantBets: betData.participantBets || {}, // Use the participantBets from form
+        participants: [currentUser.id], // Only include creator initially
+        participantBets: { [currentUser.id]: betData.participantBets?.[currentUser.id] || betData.outcomes[0] }, // Only creator's bet initially
         stakeTokens: stakeTokens,
         status: BET_STATUS.ACTIVE,
         votes: {},
@@ -971,7 +971,7 @@ export default function BetMeApp() {
 
 
   // Main app with bottom navigation
-  if (currentView === 'home' || currentView === 'profile') {
+  if (currentView === 'home' || currentView === 'profile' || currentView === 'detail') {
     return (
       <>
         {currentView === 'home' && (
@@ -1009,12 +1009,26 @@ export default function BetMeApp() {
           />
         )}
         
+        {currentView === 'detail' && selectedBet && (
+          <BetDetailView 
+            bet={selectedBet}
+            currentUser={currentUser}
+            users={users}
+            invitations={invitations}
+            setInvitations={setInvitations}
+            setBets={setBets}
+            bets={bets}
+            onBack={() => setCurrentView('home')}
+            onVote={voteForWinner}
+            onStartVoting={startVoting}
+          />
+        )}
+        
         <BottomNavigation 
           currentView={currentView}
           onNavigate={setCurrentView}
           currentUser={currentUser}
         />
-              <EnvironmentSwitcher />
     </>
   );
 }
@@ -1128,20 +1142,7 @@ export default function BetMeApp() {
         />
       )}
       
-      {currentView === 'detail' && selectedBet && (
-        <BetDetailView 
-          bet={selectedBet}
-          currentUser={currentUser}
-          users={users}
-          invitations={invitations}
-          setInvitations={setInvitations}
-          setBets={setBets}
-          bets={bets}
-          onBack={() => setCurrentView('home')}
-          onVote={voteForWinner}
-          onStartVoting={startVoting}
-        />
-      )}
+
       
       {currentView === 'credibility' && (
         <CredibilityLogView 
@@ -1161,7 +1162,7 @@ export default function BetMeApp() {
         />
       )}
       
-      <EnvironmentSwitcher />
+      {currentView !== 'create' && currentView !== 'chooseOutcome' && currentView !== 'invitations' && <EnvironmentSwitcher />}
     </>
   );
 }
