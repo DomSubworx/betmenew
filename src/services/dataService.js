@@ -39,9 +39,9 @@ export const dataService = {
     return supabaseService.getUserByUsername(username);
   },
 
-  async updateUserTokens(userId, newTokens) {
+  async updateUserTokens(userId, newTokens, reason = 'manual_update', betId = null, betTitle = null) {
     if (isDemoMode()) {
-      return demoDataService.updateUserTokens(userId, newTokens);
+      return demoDataService.updateUserTokens(userId, newTokens, reason, betId, betTitle);
     }
     return supabaseService.updateUserTokens(userId, newTokens);
   },
@@ -118,6 +118,21 @@ export const dataService = {
       return demoDataService.getCredibilityLogs(userId);
     }
     return supabaseService.getCredibilityLogs(userId);
+  },
+
+  // Token logs
+  async getTokenLogs(userId) {
+    if (isDemoMode()) {
+      return demoDataService.getTokenLogs(userId);
+    }
+    return supabaseService.getTokenLogs(userId);
+  },
+
+  async addTokenLog(userId, change, reason, betId = null, betTitle = null) {
+    if (isDemoMode()) {
+      return demoDataService.addTokenLog(userId, change, reason, betId, betTitle);
+    }
+    return supabaseService.addTokenLog(userId, change, reason, betId, betTitle);
   },
 
   // Chat operations

@@ -13,6 +13,8 @@ import ChooseOutcomeView from './components/ChooseOutcomeView.js';
 import ProfileView from './components/ProfileView.js';
 import InvitationsView from './components/InvitationsView.js';
 import CredibilityLogView from './components/CredibilityLogView.js';
+import TokenLogView from './components/TokenLogView.js';
+import BottomNavigation from './components/BottomNavigation.js';
 import EnvironmentSwitcher from './components/EnvironmentSwitcher.js';
 
 export default function BetMeApp() {
@@ -27,6 +29,7 @@ export default function BetMeApp() {
   const [invitations, setInvitations] = useState([]);
   const [userProfiles, setUserProfiles] = useState({});
   const [credibilityLogs, setCredibilityLogs] = useState([]);
+  const [tokenLogs, setTokenLogs] = useState([]);
   
   // UI state
   const [selectedBet, setSelectedBet] = useState(null);
@@ -50,15 +53,16 @@ export default function BetMeApp() {
   const loadAllData = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Initialize data service
-      dataService.initialize();
+      // 🎯 FIXED: Don't reinitialize data service - only load data
+      // dataService.initialize(); // Removed - causes data reset
       
       // Load all data in parallel for efficiency
-      const [usersData, betsData, userProfilesData, credibilityLogsData] = await Promise.all([
+      const [usersData, betsData, userProfilesData, credibilityLogsData, tokenLogsData] = await Promise.all([
         dataService.getUsers(),
         dataService.getBets(),
         dataService.getUserProfiles(),
-        currentUser ? dataService.getCredibilityLogs(currentUser.id) : Promise.resolve([])
+        currentUser ? dataService.getCredibilityLogs(currentUser.id) : Promise.resolve([]),
+        currentUser ? dataService.getTokenLogs(currentUser.id) : Promise.resolve([])
       ]);
       
       // Update all state atomically
@@ -66,6 +70,7 @@ export default function BetMeApp() {
       setBets(betsData);
       setUserProfiles(userProfilesData);
       setCredibilityLogs(credibilityLogsData);
+      setTokenLogs(tokenLogsData);
       
       console.log('✅ All data loaded successfully:', {
         users: usersData.length,
@@ -89,9 +94,15 @@ export default function BetMeApp() {
     if (!userId) return;
     
     try {
+      console.log(`🎯 Loading invitations for user ${userId}...`);
+      
       // Load all invitations for the user (not just pending ones)
       const allInvitations = await dataService.getInvitations(); // No userId filter
+      console.log('🎯 All invitations from data service:', allInvitations);
+      
       const userInvitations = allInvitations.filter(inv => inv.toUserId === userId);
+      console.log(`🎯 Filtered invitations for user ${userId}:`, userInvitations);
+      
       setInvitations(userInvitations);
       console.log(`✅ Loaded ${userInvitations.length} invitations for user ${userId} (${userInvitations.filter(inv => inv.status === 'pending').length} pending)`);
     } catch (error) {
@@ -114,8 +125,10 @@ export default function BetMeApp() {
   // INITIALIZATION AND CLEANUP
   // ============================================================================
 
-  // Load initial data on app startup
+  // Initialize data service and load initial data on app startup
   useEffect(() => {
+    // 🎯 FIXED: Initialize data service only once at startup
+    dataService.initialize();
     loadAllData();
   }, [loadAllData]);
 
@@ -161,6 +174,15 @@ export default function BetMeApp() {
     };
   }, [currentUser]);
 
+  // 🎯 FIXED: Refresh data when user changes
+  useEffect(() => {
+    if (currentUser) {
+      console.log(`🔄 User changed to ${currentUser.username}, refreshing data...`);
+      loadAllData();
+      loadUserInvitations(currentUser.id);
+    }
+  }, [currentUser, loadAllData, loadUserInvitations]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -196,6 +218,9 @@ export default function BetMeApp() {
       setCurrentUser(user);
       setCurrentView('home');
       
+      // 🎯 FIXED: Refresh all data when switching users
+      await loadAllData();
+      
       // Load user-specific data
       await loadUserInvitations(user.id);
       
@@ -204,7 +229,7 @@ export default function BetMeApp() {
       console.error('❌ Login error:', error);
       showError('Login failed. Please try again.');
     }
-  }, [users, loadUserInvitations, showError]);
+  }, [users, loadAllData, loadUserInvitations, showError]);
 
   /**
    * Handle user logout
@@ -365,14 +390,18 @@ export default function BetMeApp() {
 
       // 🎯 FIXED: Create invitations in background (don't block UI)
       const friendsToInvite = betData.participants.filter(id => id !== currentUser.id);
-      const invitationPromises = friendsToInvite.map(friendId => 
-        dataService.createInvitation({
+      console.log('🎯 Creating invitations for friends:', friendsToInvite);
+      
+      const invitationPromises = friendsToInvite.map(friendId => {
+        const invitationData = {
           betId: newBet.id,
           fromUserId: currentUser.id,
           toUserId: friendId,
           status: 'pending'
-        })
-      );
+        };
+        console.log('🎯 Creating invitation:', invitationData);
+        return dataService.createInvitation(invitationData);
+      });
 
       // 🎯 FIXED: Show success message immediately
       showSuccess('Bet created successfully!');
@@ -380,10 +409,15 @@ export default function BetMeApp() {
 
       // 🎯 FIXED: Process invitations and token deduction in background
       Promise.all(invitationPromises).then(newInvitations => {
-        console.log('✅ Invitations created:', newInvitations.length);
+        console.log('✅ Invitations created successfully:', newInvitations);
+        console.log('✅ Number of invitations created:', newInvitations.length);
         
         // Update invitations state
-        setInvitations(prev => [...prev, ...newInvitations]);
+        setInvitations(prev => {
+          const updatedInvitations = [...prev, ...newInvitations];
+          console.log('✅ Updated invitations state:', updatedInvitations);
+          return updatedInvitations;
+        });
       }).catch(error => {
         console.error('❌ Error creating invitations:', error);
         showError('Bet created but some invitations failed. Please check.');
@@ -411,9 +445,9 @@ export default function BetMeApp() {
   /**
    * Update user tokens with proper state synchronization
    */
-  const updateUserTokens = useCallback(async (userId, newTokens) => {
+  const updateUserTokens = useCallback(async (userId, newTokens, reason = 'manual_update', betId = null, betTitle = null) => {
     try {
-      const success = await dataService.updateUserTokens(userId, newTokens);
+      const success = await dataService.updateUserTokens(userId, newTokens, reason, betId, betTitle);
       if (success) {
         // Refresh user data to get updated state
         await refreshAllData();
@@ -434,14 +468,7 @@ export default function BetMeApp() {
   // INVITATION MANAGEMENT
   // ============================================================================
 
-  /**
-   * Get pending invitations for a user
-   */
-  const getPendingInvitations = useCallback((userId) => {
-    const pending = invitations.filter(inv => inv.toUserId === userId && inv.status === 'pending');
-    console.log(`📨 Pending invitations for user ${userId}:`, pending.length);
-    return pending;
-  }, [invitations]);
+
 
   /**
    * Respond to an invitation with proper state management
@@ -632,10 +659,10 @@ export default function BetMeApp() {
       for (const participantId of bet.participants) {
         const participant = users.find(u => u.id === participantId);
         if (participant) {
-          // Return the stake that was deducted when joining
-          const newTokens = participant.tokens + bet.stakeTokens;
-          await dataService.updateUserTokens(participantId, newTokens);
-          console.log(`💰 Participant ${participant.username}: stake returned (new total: ${newTokens})`);
+                  // Return the stake that was deducted when joining
+        const newTokens = participant.tokens + bet.stakeTokens;
+        await dataService.updateUserTokens(participantId, newTokens, 'stake_returned_tie', bet.id, bet.title);
+        console.log(`💰 Participant ${participant.username}: stake returned (new total: ${newTokens})`);
         }
       }
       console.log(`💰 Platform fee collected: ${platformFee} tokens (from tie scenario)`);
@@ -657,7 +684,7 @@ export default function BetMeApp() {
         // Their stake was already deducted when joining, so they get it back + winnings
         const totalPayout = bet.stakeTokens + payoutPerWinner;
         const newTokens = winner.tokens + totalPayout;
-        await dataService.updateUserTokens(winnerId, newTokens);
+        await dataService.updateUserTokens(winnerId, newTokens, 'bet_won', bet.id, bet.title);
         console.log(`💰 Winner ${winner.username}: +${totalPayout} tokens (stake returned: ${bet.stakeTokens} + winnings: ${payoutPerWinner}, new total: ${newTokens})`);
       }
     }
@@ -937,180 +964,203 @@ export default function BetMeApp() {
     );
   }
 
-  // Invitations view
-  if (currentView === 'invitations') {
-    return (
-      <InvitationsView 
-        currentUser={currentUser}
-        invitations={getPendingInvitations(currentUser.id)}
-        bets={bets}
-        users={users}
-        onBack={() => setCurrentView('home')}
-        onRespond={respondToInvitation}
-      />
-    );
-  }
 
-  // Choose outcome view
-  if (currentView === 'chooseOutcome' && selectedBet) {
-    return (
-      <ChooseOutcomeView 
-        bet={selectedBet}
-        currentUser={currentUser}
-        invitation={selectedInvitation}
-        onOutcomeChosen={async (outcome) => {
-          console.log('🎯 User chose outcome:', { outcome, betId: selectedBet.id, userId: currentUser.id });
-          
-          // 🎯 FIXED: Update local state immediately for UI responsiveness
-          const newUserTokens = currentUser.tokens - selectedBet.stakeTokens;
-          setCurrentUser(prev => ({ ...prev, tokens: newUserTokens }));
-          
-          // 🎯 FIXED: Update bet state immediately
-          const updatedBet = {
-            ...selectedBet,
-            participants: selectedBet.participants.includes(currentUser.id) 
-              ? selectedBet.participants 
-              : [...selectedBet.participants, currentUser.id],
-            participantBets: {
-              ...selectedBet.participantBets,
-              [currentUser.id]: outcome
-            }
-          };
-          
-          // 🎯 FIXED: Update bets state immediately
-          setBets(prev => prev.map(b => b.id === selectedBet.id ? updatedBet : b));
-          
-          // 🎯 FIXED: Show success message and navigate immediately
-          showSuccess('Successfully joined the bet!');
-          setSelectedInvitation(null);
-          setCurrentView('home');
-          
-          console.log('📝 Updated bet with new participant:', {
-            betId: selectedBet.id,
-            newParticipants: updatedBet.participants,
-            newParticipantBets: updatedBet.participantBets
-          });
-          
-          // 🎯 FIXED: Process background operations
-          try {
-            // Deduct tokens
-            await updateUserTokens(currentUser.id, newUserTokens);
-            
-            // 🎯 VALIDATION: Ensure token conservation after joining bet
-            if (!validateTokenConservation('bet joining')) {
-              console.error('❌ CRITICAL: Token conservation violated during bet joining!');
-            }
-            
-            // Update bet in data service
-            await dataService.updateBet(selectedBet.id, {
-              participants: updatedBet.participants,
-              participantBets: updatedBet.participantBets
-            });
-            
-            // Mark invitation as accepted if present
-            if (selectedInvitation) {
-              console.log('✅ Marking invitation as accepted:', selectedInvitation.id);
-              await dataService.updateInvitationStatus(selectedInvitation.id, 'accepted');
-              
-              // Update invitations state
-              setInvitations(prev => prev.map(inv => 
-                inv.id === selectedInvitation.id 
-                  ? { ...inv, status: 'accepted' }
-                  : inv
-              ));
-            }
-            
-            console.log('✅ All background operations completed successfully');
-          } catch (error) {
-            console.error('❌ Error in background operations:', error);
-            showError('Bet joined but some operations failed. Please check.');
-          }
-        }}
-        onBack={() => setCurrentView('home')}
-      />
-    );
-  }
 
-  // Detail view
-  if (currentView === 'detail' && selectedBet) {
-    return (
-      <BetDetailView 
-        bet={selectedBet}
-        currentUser={currentUser}
-        users={users}
-        invitations={invitations}
-        setInvitations={setInvitations}
-        setBets={setBets}
-        bets={bets}
-        onBack={() => setCurrentView('home')}
-        onVote={voteForWinner}
-        onStartVoting={startVoting}
-      />
-    );
-  }
 
-  // Profile view
-  if (currentView === 'profile') {
-    return (
-      <ProfileView 
-        currentUser={currentUser}
-        users={users}
-        bets={bets}
-        userProfiles={userProfiles}
-        inviteLinks={inviteLinks}
-        onBack={() => setCurrentView('home')}
-        onViewCredibility={() => setCurrentView('credibility')}
-        onUploadPhoto={uploadProfilePhoto}
-        onGenerateInviteLink={generateInviteLink}
-        onCopyInviteLink={copyInviteLink}
-        onRemoveFriend={removeFriend}
-      />
-    );
-  }
 
-  // Credibility log view
-  if (currentView === 'credibility') {
-    return (
-      <CredibilityLogView 
-        currentUser={currentUser}
-        credibilityLogs={credibilityLogs}
-        users={users}
-        onBack={() => setCurrentView('profile')}
-      />
-    );
-  }
 
-  // Create bet view
-  if (currentView === 'create') {
-    return (
-      <CreateBetView 
-        currentUser={currentUser}
-        users={users}
-        onBack={() => setCurrentView('home')}
-        onSubmit={createBet}
-      />
-    );
-  }
 
-  // Home view (default)
+  // Main app with bottom navigation
+  if (currentView === 'home' || currentView === 'profile') {
+    return (
+      <>
+        {currentView === 'home' && (
+          <HomeView 
+            currentUser={currentUser}
+            bets={bets}
+            users={users}
+            invitations={invitations}
+            isLoading={isLoading}
+            onLogout={handleLogout}
+            onCreateBet={() => setCurrentView('create')}
+            onViewInvitations={() => setCurrentView('invitations')}
+            onViewCredibility={() => setCurrentView('credibility')}
+            onViewBet={(bet) => {
+              setSelectedBet(bet);
+              setCurrentView('detail');
+            }}
+          />
+        )}
+        
+        {currentView === 'profile' && (
+          <ProfileView 
+            currentUser={currentUser}
+            users={users}
+            bets={bets}
+            userProfiles={userProfiles}
+            inviteLinks={inviteLinks}
+            onBack={() => setCurrentView('home')}
+            onViewCredibility={() => setCurrentView('credibility')}
+            onViewTokenHistory={() => setCurrentView('tokenHistory')}
+            onUploadPhoto={uploadProfilePhoto}
+            onGenerateInviteLink={generateInviteLink}
+            onCopyInviteLink={copyInviteLink}
+            onRemoveFriend={removeFriend}
+          />
+        )}
+        
+        <BottomNavigation 
+          currentView={currentView}
+          onNavigate={setCurrentView}
+          currentUser={currentUser}
+        />
+              <EnvironmentSwitcher />
+    </>
+  );
+}
+
+  // Other views (without bottom navigation)
+
+  
   return (
     <>
-      <HomeView 
-        currentUser={currentUser}
-        bets={bets}
-        users={users}
-        invitations={invitations}
-        isLoading={isLoading}
-        onLogout={handleLogout}
-        onCreateBet={() => setCurrentView('create')}
-        onViewInvitations={() => setCurrentView('invitations')}
-        onViewProfile={() => setCurrentView('profile')}
-        onViewCredibility={() => setCurrentView('credibility')}
-        onViewBet={(bet) => {
-          setSelectedBet(bet);
-          setCurrentView('detail');
-        }}
-      />
+      {currentView === 'login' && (
+        <LoginView 
+          users={users}
+          onLogin={handleLogin}
+        />
+      )}
+      
+      {currentView === 'create' && (
+        <CreateBetView 
+          currentUser={currentUser}
+          users={users}
+          onBack={() => setCurrentView('home')}
+          onSubmit={createBet}
+        />
+      )}
+      
+      {currentView === 'invitations' && (
+        <InvitationsView 
+          currentUser={currentUser}
+          invitations={invitations}
+          bets={bets}
+          users={users}
+          onBack={() => setCurrentView('home')}
+          onRespond={respondToInvitation}
+        />
+      )}
+      
+      {currentView === 'chooseOutcome' && selectedBet && (
+        <ChooseOutcomeView 
+          bet={selectedBet}
+          currentUser={currentUser}
+          invitation={selectedInvitation}
+          onOutcomeChosen={async (outcome) => {
+            console.log('🎯 User chose outcome:', { outcome, betId: selectedBet.id, userId: currentUser.id });
+            
+            // 🎯 FIXED: Update local state immediately for UI responsiveness
+            const newUserTokens = currentUser.tokens - selectedBet.stakeTokens;
+            setCurrentUser(prev => ({ ...prev, tokens: newUserTokens }));
+            
+            // 🎯 FIXED: Update bet state immediately
+            const updatedBet = {
+              ...selectedBet,
+              participants: selectedBet.participants.includes(currentUser.id) 
+                ? selectedBet.participants 
+                : [...selectedBet.participants, currentUser.id],
+              participantBets: {
+                ...selectedBet.participantBets,
+                [currentUser.id]: outcome
+              }
+            };
+            
+            // 🎯 FIXED: Update bets state immediately
+            setBets(prev => prev.map(b => b.id === selectedBet.id ? updatedBet : b));
+            
+            // 🎯 FIXED: Show success message and navigate immediately
+            showSuccess('Successfully joined the bet!');
+            setSelectedInvitation(null);
+            setCurrentView('home');
+            
+            console.log('📝 Updated bet with new participant:', {
+              betId: selectedBet.id,
+              newParticipants: updatedBet.participants,
+              newParticipantBets: updatedBet.participantBets
+            });
+            
+            // 🎯 FIXED: Process background operations
+            try {
+              // Deduct tokens
+              await updateUserTokens(currentUser.id, newUserTokens, 'bet_stake', selectedBet.id, selectedBet.title);
+              
+              // 🎯 VALIDATION: Ensure token conservation after joining bet
+              if (!validateTokenConservation('bet joining')) {
+                console.error('❌ CRITICAL: Token conservation violated during bet joining!');
+              }
+              
+              // Update bet in data service
+              await dataService.updateBet(selectedBet.id, {
+                participants: updatedBet.participants,
+                participantBets: updatedBet.participantBets
+              });
+              
+              // Mark invitation as accepted if present
+              if (selectedInvitation) {
+                console.log('✅ Marking invitation as accepted:', selectedInvitation.id);
+                await dataService.updateInvitationStatus(selectedInvitation.id, 'accepted');
+                
+                // Update invitations state
+                setInvitations(prev => prev.map(inv => 
+                  inv.id === selectedInvitation.id 
+                    ? { ...inv, status: 'accepted' }
+                    : inv
+                ));
+              }
+              
+              console.log('✅ All background operations completed successfully');
+            } catch (error) {
+              console.error('❌ Error in background operations:', error);
+              showError('Bet joined but some operations failed. Please check.');
+            }
+          }}
+          onBack={() => setCurrentView('home')}
+        />
+      )}
+      
+      {currentView === 'detail' && selectedBet && (
+        <BetDetailView 
+          bet={selectedBet}
+          currentUser={currentUser}
+          users={users}
+          invitations={invitations}
+          setInvitations={setInvitations}
+          setBets={setBets}
+          bets={bets}
+          onBack={() => setCurrentView('home')}
+          onVote={voteForWinner}
+          onStartVoting={startVoting}
+        />
+      )}
+      
+      {currentView === 'credibility' && (
+        <CredibilityLogView 
+          currentUser={currentUser}
+          credibilityLogs={credibilityLogs}
+          users={users}
+          onBack={() => setCurrentView('profile')}
+        />
+      )}
+      
+      {currentView === 'tokenHistory' && (
+        <TokenLogView 
+          currentUser={currentUser}
+          tokenLogs={tokenLogs}
+          users={users}
+          onBack={() => setCurrentView('profile')}
+        />
+      )}
+      
       <EnvironmentSwitcher />
     </>
   );

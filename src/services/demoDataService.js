@@ -89,6 +89,7 @@ let demoInvitations = [
 ];
 let demoUserProfiles = {};
 let demoCredibilityLogs = [];
+let demoTokenLogs = [];
 let demoInviteLinks = {};
 
 // LocalStorage helpers
@@ -98,6 +99,7 @@ const STORAGE_KEYS = {
   INVITATIONS: 'betme_demo_invitations',
   USER_PROFILES: 'betme_demo_user_profiles',
   CREDIBILITY_LOGS: 'betme_demo_credibility_logs',
+  TOKEN_LOGS: 'betme_demo_token_logs',
   INVITE_LINKS: 'betme_demo_invite_links'
 };
 
@@ -132,15 +134,15 @@ const initializeData = () => {
   demoInvitations = loadFromLocalStorage(STORAGE_KEYS.INVITATIONS, demoInvitations);
   demoUserProfiles = loadFromLocalStorage(STORAGE_KEYS.USER_PROFILES, demoUserProfiles);
   demoCredibilityLogs = loadFromLocalStorage(STORAGE_KEYS.CREDIBILITY_LOGS, demoCredibilityLogs);
+  demoTokenLogs = loadFromLocalStorage(STORAGE_KEYS.TOKEN_LOGS, demoTokenLogs);
   demoInviteLinks = loadFromLocalStorage(STORAGE_KEYS.INVITE_LINKS, demoInviteLinks);
   
   console.log('📊 Loaded bets from localStorage:', demoBets);
   
-  // Check if we have the test bet, if not, reset to ensure it's available
-  const hasTestBet = demoBets.some(bet => bet.id === 3 && bet.title === "Test Voting Bet");
-  if (!hasTestBet) {
-    console.log('⚠️ Test bet not found, resetting demo data...');
-    // Force reset to include the test bet
+  // 🎯 FIXED: Only reset if no bets exist at all, not for specific test bet
+  if (demoBets.length === 0) {
+    console.log('⚠️ No bets found, initializing with demo data...');
+    // Only reset if there are no bets at all
     demoUsers = [
       { id: 1, username: 'Maxim', email: 'maxim@example.com', friends: [2, 3, 4, 5, 6, 7, 8, 9], tokens: 1000, credibility: 100 },
       { id: 2, username: 'Moritz', email: 'moritz@example.com', friends: [1, 3, 4, 5, 6, 7, 8, 9], tokens: 1000, credibility: 100 },
@@ -285,15 +287,23 @@ export const demoDataService = {
     return Promise.resolve(user || null);
   },
 
-  updateUserTokens(userId, newTokens) {
+  updateUserTokens(userId, newTokens, reason = 'manual_update', betId = null, betTitle = null) {
     const userIndex = demoUsers.findIndex(u => u.id === userId);
     if (userIndex !== -1) {
+      const oldTokens = demoUsers[userIndex].tokens;
+      const change = newTokens - oldTokens;
+      
       demoUsers[userIndex] = { ...demoUsers[userIndex], tokens: newTokens };
       
       // Save to localStorage immediately
       saveToLocalStorage(STORAGE_KEYS.USERS, demoUsers);
       
-      console.log('✅ User tokens updated and saved:', { userId, newTokens });
+      // Log the token change if there was a change
+      if (change !== 0) {
+        this.addTokenLog(userId, change, reason, betId, betTitle);
+      }
+      
+      console.log('✅ User tokens updated and saved:', { userId, oldTokens, newTokens, change, reason });
       return Promise.resolve(true);
     }
     return Promise.resolve(false);
@@ -374,10 +384,16 @@ export const demoDataService = {
 
   // Invitation operations
   getInvitations(userId = null) {
+    console.log('🎯 getInvitations called with userId:', userId);
+    console.log('🎯 Current demoInvitations:', demoInvitations);
+    
     let invitations = [...demoInvitations];
     if (userId) {
       invitations = invitations.filter(inv => inv.toUserId === userId && inv.status === 'pending');
+      console.log('🎯 Filtered invitations for userId:', userId, invitations);
     }
+    
+    console.log('🎯 Returning invitations:', invitations);
     return Promise.resolve(invitations);
   },
 
@@ -435,6 +451,35 @@ export const demoDataService = {
       ? demoCredibilityLogs.filter(log => log.userId === userId)
       : demoCredibilityLogs;
     return Promise.resolve([...logs]);
+  },
+
+  // Token logs
+  getTokenLogs(userId) {
+    const logs = userId 
+      ? demoTokenLogs.filter(log => log.userId === userId)
+      : demoTokenLogs;
+    return Promise.resolve([...logs]);
+  },
+
+  addTokenLog(userId, change, reason, betId = null, betTitle = null) {
+    const log = {
+      id: Date.now(),
+      userId,
+      change, // positive for gains, negative for losses
+      reason, // 'bet_stake', 'bet_win', 'bet_loss', 'platform_fee', etc.
+      betId,
+      betTitle,
+      timestamp: new Date().toISOString(),
+      balanceAfter: null // Will be calculated when user tokens are updated
+    };
+    
+    demoTokenLogs.unshift(log); // Add to beginning for newest first
+    
+    // Save to localStorage immediately
+    saveToLocalStorage(STORAGE_KEYS.TOKEN_LOGS, demoTokenLogs);
+    
+    console.log('✅ Token log added and saved:', log);
+    return Promise.resolve(log);
   },
 
   // Chat operations

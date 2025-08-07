@@ -13,6 +13,11 @@ function EnvironmentSwitcher({ onEnvironmentChange }) {
     }
   };
 
+  const handleDebugInvitations = () => {
+    console.log('Current invitations:', dataService.getInvitations());
+    console.log('Demo invitations:', dataService.demoDataService?.demoInvitations || 'Not available');
+  };
+
   const handleSwitchEnvironment = () => {
     const newMode = isDemoMode() ? 'supabase' : 'demo';
     localStorage.setItem('REACT_APP_ENVIRONMENT', newMode);
@@ -67,6 +72,15 @@ function EnvironmentSwitcher({ onEnvironmentChange }) {
               className="w-full text-xs bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 transition-colors"
             >
               Reset Demo Data
+            </button>
+          )}
+          
+          {isDemoMode() && (
+            <button
+              onClick={handleDebugInvitations}
+              className="w-full text-xs bg-gray-500 text-white px-2 py-1 rounded hover:bg-gray-600 transition-colors"
+            >
+              Debug Invitations
             </button>
           )}
         </div>
