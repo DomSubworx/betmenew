@@ -1,6 +1,6 @@
 // Utility functions for BetMe app
-import { Clock, Vote, Trophy } from 'lucide-react';
-import { BET_STATUS, CREDIBILITY_LEVELS } from './constants.js';
+import { Clock, Vote, Trophy, AlertTriangle } from 'lucide-react';
+import { BET_STATUS, CREDIBILITY_LEVELS, VOTING_CONFIG } from './constants.js';
 
 // Status utility functions
 export const getStatusColor = (status) => {
@@ -8,6 +8,7 @@ export const getStatusColor = (status) => {
     case BET_STATUS.ACTIVE: return 'bg-green-100 text-green-800';
     case BET_STATUS.VOTING: return 'bg-yellow-100 text-yellow-800';
     case BET_STATUS.COMPLETED: return 'bg-blue-100 text-blue-800';
+    case BET_STATUS.ANNULLED: return 'bg-red-100 text-red-800';
     case BET_STATUS.FINISHED: return 'bg-blue-100 text-blue-800';
     default: return 'bg-gray-100 text-gray-800';
   }
@@ -18,6 +19,7 @@ export const getStatusText = (status) => {
     case BET_STATUS.ACTIVE: return 'Active';
     case BET_STATUS.VOTING: return 'Voting';
     case BET_STATUS.COMPLETED: return 'Completed';
+    case BET_STATUS.ANNULLED: return 'Annulled';
     case BET_STATUS.FINISHED: return 'Finished';
     default: return 'Unknown';
   }
@@ -28,6 +30,7 @@ export const getStatusIcon = (status) => {
     case BET_STATUS.ACTIVE: return <Clock size={16} />;
     case BET_STATUS.VOTING: return <Vote size={16} />;
     case BET_STATUS.COMPLETED: return <Trophy size={16} />;
+    case BET_STATUS.ANNULLED: return <AlertTriangle size={16} />;
     case BET_STATUS.FINISHED: return <Trophy size={16} />;
     default: return <Clock size={16} />;
   }
@@ -125,6 +128,104 @@ export const calculateMajorityVote = (votes) => {
   }
   
   return null;
+};
+
+// 🆕 NEW: Calculate absolute majority (more than 50% of ALL participants)
+export const calculateAbsoluteMajority = (votes, totalParticipants) => {
+  if (!votes || Object.keys(votes).length === 0) return null;
+  
+  const voteCounts = {};
+  Object.values(votes).forEach(vote => {
+    voteCounts[vote] = (voteCounts[vote] || 0) + 1;
+  });
+  
+  const maxVotes = Math.max(...Object.values(voteCounts));
+  const majorityOutcomes = Object.keys(voteCounts).filter(outcome => voteCounts[outcome] === maxVotes);
+  
+  // Absolute majority: more than 50% of ALL participants
+  const absoluteMajorityThreshold = Math.ceil(totalParticipants * VOTING_CONFIG.MAJORITY_THRESHOLD_PERCENTAGE);
+  
+  if (majorityOutcomes.length === 1 && maxVotes > absoluteMajorityThreshold) {
+    return majorityOutcomes[0];
+  }
+  
+  return null;
+};
+
+// 🆕 NEW: Check if voting window has expired
+export const isVotingWindowExpired = (votingStartTime) => {
+  if (!votingStartTime) return false;
+  
+  const votingStart = new Date(votingStartTime);
+  const now = new Date();
+  const votingWindowMs = VOTING_CONFIG.VOTING_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  
+  return (now - votingStart) > votingWindowMs;
+};
+
+// 🆕 NEW: Get time remaining in voting window
+export const getVotingTimeRemaining = (votingStartTime) => {
+  if (!votingStartTime) return null;
+  
+  const votingStart = new Date(votingStartTime);
+  const now = new Date();
+  const votingWindowMs = VOTING_CONFIG.VOTING_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  const timeElapsed = now - votingStart;
+  const timeRemaining = votingWindowMs - timeElapsed;
+  
+  if (timeRemaining <= 0) return 0;
+  
+  return timeRemaining;
+};
+
+// 🆕 NEW: Format time remaining as human readable
+export const formatTimeRemaining = (timeRemainingMs) => {
+  if (timeRemainingMs <= 0) return 'Expired';
+  
+  const days = Math.floor(timeRemainingMs / (24 * 60 * 60 * 1000));
+  const hours = Math.floor((timeRemainingMs % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+  const minutes = Math.floor((timeRemainingMs % (60 * 60 * 1000)) / (60 * 1000));
+  
+  if (days > 0) {
+    return `${days}d ${hours}h ${minutes}m`;
+  } else if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  } else {
+    return `${minutes}m`;
+  }
+};
+
+// 🆕 NEW: Check if all participants have voted
+export const hasAllParticipantsVoted = (bet, users) => {
+  if (!bet.participants || !bet.votes) return false;
+  
+  return bet.participants.every(participantId => {
+    const participant = users.find(u => u.id === participantId);
+    return participant && bet.votes[participant.username];
+  });
+};
+
+// 🆕 NEW: Get participants who haven't voted
+export const getNonVotingParticipants = (bet, users) => {
+  if (!bet.participants || !bet.votes) return bet.participants || [];
+  
+  return bet.participants.filter(participantId => {
+    const participant = users.find(u => u.id === participantId);
+    return !participant || !bet.votes[participant.username];
+  });
+};
+
+// 🆕 NEW: Get participants who voted against absolute majority
+export const getParticipantsVotingAgainstMajority = (bet, users, absoluteMajority) => {
+  if (!absoluteMajority || !bet.votes || !bet.participants) return [];
+  
+  return bet.participants.filter(participantId => {
+    const participant = users.find(u => u.id === participantId);
+    if (!participant) return false;
+    
+    const participantVote = bet.votes[participant.username];
+    return participantVote && participantVote !== absoluteMajority;
+  });
 };
 
 export const getNonVoters = (bet, users) => {

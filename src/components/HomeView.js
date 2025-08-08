@@ -1,10 +1,32 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Users, Trophy, MessageCircle, Vote } from 'lucide-react';
-import { getStatusColor, getStatusText, getStatusIcon, getUserName, getCredibilityBadge } from '../utils.js';
+import { Plus, Users, Trophy, MessageCircle, Vote, AlertTriangle } from 'lucide-react';
+import { getStatusColor, getStatusText, getStatusIcon, getUserName, getCredibilityBadge, getVotingTimeRemaining, formatTimeRemaining, isVotingWindowExpired } from '../utils.js';
 import LoadingSpinner from './LoadingSpinner.js';
+import { pageTransition, itemFadeIn, hoverScale } from '../ui/motionPresets.js';
 
 function HomeView({ currentUser, bets, users, invitations, onLogout, onCreateBet, onViewInvitations, onViewProfile, onViewCredibility, onViewTokenHistory, onViewBet, isLoading = false }) {
+  const [timeRemainingMap, setTimeRemainingMap] = React.useState({});
+
+  // 🆕 NEW: Track voting time remaining for all bets
+  React.useEffect(() => {
+    const votingBets = bets.filter(bet => bet.status === 'voting' && bet.votingStartTime);
+    
+    const updateTimeRemaining = () => {
+      const newTimeRemainingMap = {};
+      votingBets.forEach(bet => {
+        const remaining = getVotingTimeRemaining(bet.votingStartTime);
+        newTimeRemainingMap[bet.id] = remaining;
+      });
+      setTimeRemainingMap(newTimeRemainingMap);
+    };
+
+    updateTimeRemaining();
+    const interval = setInterval(updateTimeRemaining, 60000); // Update every minute
+
+    return () => clearInterval(interval);
+  }, [bets]);
+
   const userBets = bets.filter(bet => bet.participants.includes(currentUser.id));
   const pendingInvitations = invitations.filter(inv => 
     inv.toUserId === currentUser.id && inv.status === 'pending'
@@ -47,20 +69,40 @@ function HomeView({ currentUser, bets, users, invitations, onLogout, onCreateBet
           <div>
             <h1 className="text-2xl font-bold">Bet Me If You Can</h1>
             <p className="text-primary-100 text-sm">Hey {currentUser.username}! 👋</p>
-            <div className="flex items-center space-x-2 text-primary-200 text-xs">
+            <div className="flex items-center space-x-4">
               <button
                 onClick={onViewTokenHistory}
                 className="text-white font-semibold hover:text-primary-100 transition-colors cursor-pointer"
               >
                 💰 {currentUser.tokens} Tokens
               </button>
-              <span>•</span>
               <button
                 onClick={onViewCredibility}
                 className="text-white font-semibold hover:text-primary-100 transition-colors cursor-pointer"
               >
                 🎯 {currentUser.credibility || 100}/100 Credibility
               </button>
+              
+              {/* 🆕 NEW: Quick test button for annulment */}
+              {bets.some(bet => bet.status === 'voting') && (
+                <button
+                  onClick={async () => {
+                    const votingBet = bets.find(bet => bet.status === 'voting');
+                    if (votingBet) {
+                      try {
+                        await dataService.testAnnulment(votingBet.id);
+                        window.location.reload(); // Refresh to see changes
+                      } catch (error) {
+                        console.error('Test annulment failed:', error);
+                      }
+                    }
+                  }}
+                  className="px-3 py-1 bg-orange-500 text-white text-xs rounded-lg hover:bg-orange-600 transition-colors font-medium"
+                  title="Test annulment for first voting bet"
+                >
+                  🧪 Test Annulment
+                </button>
+              )}
             </div>
           </div>
           <button 
@@ -196,15 +238,50 @@ function HomeView({ currentUser, bets, users, invitations, onLogout, onCreateBet
                   <Vote size={12} />
                 </motion.div>
               )}
-              <div className="flex justify-between items-start mb-2">
+                            <div className="flex justify-between items-start mb-2">
                 <h3 className="font-semibold text-gray-800">{currentBet.title}</h3>
                 <span className={`px-2 py-1 rounded-full text-xs font-medium flex items-center space-x-1 ${getStatusColor(currentBet.status)}`}>
                   {getStatusIcon(currentBet.status)}
                   <span>{getStatusText(currentBet.status)}</span>
                 </span>
               </div>
+
+              {/* 🆕 NEW: Show voting time remaining */}
+              {currentBet.status === 'voting' && currentBet.votingStartTime && (
+                <div className="mb-2 flex items-center justify-between">
+                  <span className={`text-xs font-medium ${
+                    timeRemainingMap[currentBet.id] <= 0 
+                      ? 'text-red-600' 
+                      : timeRemainingMap[currentBet.id] < 24 * 60 * 60 * 1000 
+                        ? 'text-orange-600' 
+                        : 'text-blue-600'
+                  }`}>
+                    ⏰ {formatTimeRemaining(timeRemainingMap[currentBet.id])}
+                  </span>
+                </div>
+              )}
+
+              {/* 🆕 NEW: Show expired voting warning */}
+              {currentBet.status === 'voting' && currentBet.votingStartTime && isVotingWindowExpired(currentBet.votingStartTime) && (
+                <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="flex items-center text-red-700 text-xs">
+                    <AlertTriangle size={12} className="mr-1" />
+                    <span>Voting expired - will be annulled</span>
+                  </div>
+                </div>
+              )}
+
+              {/* 🆕 NEW: Show annulled bet info */}
+              {currentBet.status === 'annulled' && (
+                <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="flex items-center text-red-700 text-xs">
+                    <AlertTriangle size={12} className="mr-1" />
+                    <span>Bet annulled - tokens refunded with fees</span>
+                  </div>
+                </div>
+              )}
               
-                             <p className="text-gray-600 text-sm mb-3">{currentBet.description || 'No description'}</p>
+              <p className="text-gray-600 text-sm mb-3">{currentBet.description || 'No description'}</p>
               
               {currentBet.chatMessages && currentBet.chatMessages.length > 0 && (
                                 <div className="mb-3 p-2 bg-primary-50 rounded-lg border-l-2 border-primary-300">

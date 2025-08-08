@@ -15,10 +15,17 @@ export const CREDIBILITY_CONFIG = {
   MAX_CREDIBILITY: 100
 };
 
+export const VOTING_CONFIG = {
+  VOTING_WINDOW_DAYS: 3, // 3-day voting window
+  CANCELLATION_FEE_PERCENTAGE: 0.20, // 20% cancellation fee for annulment
+  MAJORITY_THRESHOLD_PERCENTAGE: 0.50 // More than 50% for absolute majority
+};
+
 export const BET_STATUS = {
   ACTIVE: 'active',
   VOTING: 'voting',
   COMPLETED: 'completed',
+  ANNULLED: 'annulled', // New status for expired voting
   FINISHED: 'finished'
 };
 

@@ -1,14 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Users, Vote, Trophy, MessageCircle, Send, Share2, UserPlus, Coins } from 'lucide-react';
-import { getUserName, getStatusColor, getStatusText, getStatusIcon, hasVoted, getVoteCount, formatTime } from '../utils.js';
+import { ArrowLeft, Users, Vote, Trophy, MessageCircle, Send, Share2, UserPlus, Coins, AlertTriangle, Clock } from 'lucide-react';
+import { getUserName, getStatusColor, getStatusText, getStatusIcon, hasVoted, getVoteCount, formatTime, getVotingTimeRemaining, formatTimeRemaining, isVotingWindowExpired } from '../utils.js';
 import { useToast } from '../contexts/ToastContext.js';
 import { dataService } from '../services/dataService.js';
+import { motion } from 'framer-motion';
+import { pageTransition, itemFadeIn } from '../ui/motionPresets.js';
 
 function BetDetailView({ bet, currentUser, users, invitations, setInvitations, setBets, bets, onBack, onVote, onStartVoting }) {
   const { showError, showSuccess } = useToast();
   const [newMessage, setNewMessage] = useState('');
   const [selectedWinner, setSelectedWinner] = useState('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState(null);
+  const [isTestingAnnulment, setIsTestingAnnulment] = useState(false);
   const chatEndRef = useRef(null);
 
   // 🎨 NEW: Chat bubble colors for each user
@@ -38,6 +42,21 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
   useEffect(() => {
     scrollToBottom();
   }, [bet.chatMessages]);
+
+  // 🆕 NEW: Track voting time remaining
+  useEffect(() => {
+    if (bet.status === 'voting' && bet.votingStartTime) {
+      const updateTimeRemaining = () => {
+        const remaining = getVotingTimeRemaining(bet.votingStartTime);
+        setTimeRemaining(remaining);
+      };
+
+      updateTimeRemaining();
+      const interval = setInterval(updateTimeRemaining, 60000); // Update every minute
+
+      return () => clearInterval(interval);
+    }
+  }, [bet.status, bet.votingStartTime]);
 
   const sendMessage = async () => {
     if (!newMessage.trim() || isSendingMessage) return;
@@ -214,6 +233,37 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
   const appFee = Math.floor(totalPot * 0.03);
   const winnersReward = totalPot - appFee;
 
+  // 🆕 NEW: Test function to simulate 3-day voting period expiration
+  const testAnnulment = async () => {
+    if (!bet || bet.status !== 'voting') {
+      showError('Can only test annulment on voting bets');
+      return;
+    }
+
+    setIsTestingAnnulment(true);
+    try {
+      console.log('🧪 Testing annulment for bet:', bet.id);
+      await dataService.testAnnulment(bet.id);
+      showSuccess('✅ Annulment test completed! Check the bet status.');
+      
+      // Refresh the bet data
+      const updatedBets = await dataService.getBets();
+      setBets(updatedBets);
+      
+      // Update selected bet if it's the current one
+      const updatedBet = updatedBets.find(b => b.id === bet.id);
+      if (updatedBet) {
+        // Force a re-render by updating the bet prop
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('❌ Error testing annulment:', error);
+      showError('Failed to test annulment');
+    } finally {
+      setIsTestingAnnulment(false);
+    }
+  };
+
   return (
     <div className="max-w-md mx-auto bg-white min-h-screen pb-20">
       {/* Header */}
@@ -296,7 +346,47 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
               Voting ({Object.keys(bet.votes || {}).length}/{bet.participants.length} votes)
             </h3>
             
-            {!hasVoted(currentUser.username, bet) ? (
+            {/* 🆕 NEW: Show voting time remaining */}
+            {bet.votingStartTime && (
+              <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-blue-800">
+                    Voting Window: {formatTimeRemaining(timeRemaining)}
+                  </span>
+                  {timeRemaining !== null && timeRemaining <= 0 && (
+                    <span className="text-sm font-medium text-red-600 flex items-center">
+                      <AlertTriangle size={16} className="mr-1" />
+                      Expired
+                    </span>
+                  )}
+                </div>
+                {timeRemaining !== null && timeRemaining > 0 && (
+                  <div className="mt-2">
+                    <div className="w-full bg-blue-200 rounded-full h-2">
+                      <div 
+                        className="bg-blue-600 h-2 rounded-full transition-all duration-1000"
+                        style={{ 
+                          width: `${Math.max(0, (timeRemaining / (3 * 24 * 60 * 60 * 1000)) * 100)}%` 
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* 🆕 NEW: Show expired voting message */}
+            {bet.votingStartTime && isVotingWindowExpired(bet.votingStartTime) ? (
+              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-center text-red-800">
+                  <AlertTriangle size={20} className="mr-2" />
+                  <div>
+                    <h4 className="font-semibold">Voting Window Expired</h4>
+                    <p className="text-sm">This bet will be annulled and tokens refunded with cancellation fees.</p>
+                  </div>
+                </div>
+              </div>
+            ) : !hasVoted(currentUser.username, bet) ? (
               <div className="space-y-3">
                 <p className="text-sm text-gray-600">Choose the winner:</p>
                 <div className="space-y-2">
@@ -313,8 +403,6 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
                       <div className="font-medium">{outcome}</div>
                       <div className="text-sm text-gray-500">
                         Votes: {getVoteCount(outcome, bet)} {getVoteCount(outcome, bet) > 0 && '🗳️'}
-                        {/* Debug info */}
-                        {console.log(`Vote count for ${outcome}:`, getVoteCount(outcome, bet), 'bet votes:', bet.votes)}
                       </div>
                     </button>
                   ))}
@@ -328,25 +416,73 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
                 </button>
               </div>
             ) : (
-              <div className="space-y-2">
-                <p className="text-sm text-gray-600">You have already voted!</p>
-                {bet.outcomes.map((outcome, index) => (
-                  <div key={index} className="p-3 bg-gray-50 rounded-lg">
-                    <div className="font-medium">{outcome}</div>
-                    <div className="text-sm text-gray-500">
-                      Votes: {getVoteCount(outcome, bet)} {getVoteCount(outcome, bet) > 0 && '🗳️'}
-                      {/* Debug info */}
-                      {console.log(`Vote count for ${outcome} (already voted):`, getVoteCount(outcome, bet), 'bet votes:', bet.votes)}
-                    </div>
-                  </div>
-                ))}
-                <div className="mt-3 p-2 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-700">
-                    Waiting for {bet.participants.length - Object.keys(bet.votes || {}).length} more vote(s)...
-                  </p>
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-center text-green-800">
+                  <Vote size={20} className="mr-2" />
+                  <span className="font-medium">You have voted!</span>
                 </div>
+                <p className="text-sm text-green-600 mt-1">
+                  Waiting for other participants to vote...
+                </p>
               </div>
             )}
+
+            {/* 🆕 NEW: Test annulment button for easy testing */}
+            {bet.status === 'voting' && (
+              <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center text-orange-800">
+                    <AlertTriangle size={16} className="mr-2" />
+                    <span className="text-sm font-medium">🧪 Test Annulment</span>
+                  </div>
+                  <button
+                    onClick={testAnnulment}
+                    disabled={isTestingAnnulment}
+                    className="px-4 py-2 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed font-medium"
+                  >
+                    {isTestingAnnulment ? '🔄 Testing...' : '🚀 Simulate 3-Day Expiry'}
+                  </button>
+                </div>
+                <p className="text-xs text-orange-600 mt-2">
+                  <strong>Testing Feature:</strong> Click this button to simulate the 3-day voting period expiration. 
+                  This will immediately trigger the annulment process with token refunds and credibility punishments.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 🆕 NEW: Annulled bet status */}
+        {bet.status === 'annulled' && (
+          <div className="bg-white border rounded-xl p-4 shadow-sm">
+            <h3 className="font-semibold text-red-800 mb-3 flex items-center">
+              <AlertTriangle size={20} className="mr-2" />
+              Bet Annulled
+            </h3>
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-700 mb-3">
+                The 3-day voting window expired without all participants voting. 
+                This bet has been automatically annulled.
+              </p>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Stake per participant:</span>
+                  <span className="font-medium">💰 {bet.stakeTokens}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Cancellation fee (20%):</span>
+                  <span className="font-medium text-red-600">-💰 {Math.floor(bet.stakeTokens * 0.20)}</span>
+                </div>
+                <div className="flex justify-between border-t pt-2">
+                  <span className="text-gray-600">Refund per participant:</span>
+                  <span className="font-medium text-green-600">💰 {bet.stakeTokens - Math.floor(bet.stakeTokens * 0.20)}</span>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-3">
+                Participants who didn't vote received credibility penalties. 
+                Participants who voted against the majority (if one existed) received additional penalties.
+              </p>
+            </div>
           </div>
         )}
 

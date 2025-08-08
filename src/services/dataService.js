@@ -124,15 +124,52 @@ export const dataService = {
   async getTokenLogs(userId) {
     if (isDemoMode()) {
       return demoDataService.getTokenLogs(userId);
+    } else {
+      return supabaseService.getTokenLogs(userId);
     }
-    return supabaseService.getTokenLogs(userId);
   },
 
-  async addTokenLog(userId, change, reason, betId = null, betTitle = null) {
+  addTokenLog(userId, change, reason, betId = null, betTitle = null) {
     if (isDemoMode()) {
       return demoDataService.addTokenLog(userId, change, reason, betId, betTitle);
+    } else {
+      return supabaseService.addTokenLog(userId, change, reason, betId, betTitle);
     }
-    return supabaseService.addTokenLog(userId, change, reason, betId, betTitle);
+  },
+
+  // 🆕 NEW: Annulment and voting management functions
+  processBetAnnulment(betId) {
+    if (isDemoMode()) {
+      return demoDataService.processBetAnnulment(betId);
+    } else {
+      return supabaseService.processBetAnnulment(betId);
+    }
+  },
+
+  checkExpiredVotingBets() {
+    if (isDemoMode()) {
+      return demoDataService.checkExpiredVotingBets();
+    } else {
+      return supabaseService.checkExpiredVotingBets();
+    }
+  },
+
+  addCredibilityLog(userId, change, reason, betId = null, betTitle = null) {
+    if (isDemoMode()) {
+      return demoDataService.addCredibilityLog(userId, change, reason, betId, betTitle);
+    } else {
+      return supabaseService.addCredibilityLog(userId, change, reason, betId, betTitle);
+    }
+  },
+
+  // 🆕 NEW: Test function for manual annulment testing
+  testAnnulment(betId) {
+    if (isDemoMode()) {
+      return demoDataService.testAnnulment(betId);
+    } else {
+      console.log('🧪 Test annulment only available in demo mode');
+      return Promise.resolve();
+    }
   },
 
   // Chat operations

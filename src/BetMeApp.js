@@ -124,6 +124,44 @@ export default function BetMeApp() {
   }, [loadAllData, loadUserInvitations, currentUser]);
 
   // ============================================================================
+  // BACKGROUND PROCESSES
+  // ============================================================================
+
+  // 🆕 NEW: Background process to check expired voting bets
+  useEffect(() => {
+    let isProcessing = false; // Guard against concurrent processing
+    
+    const checkExpiredBets = async () => {
+      if (isProcessing) {
+        console.log('⚠️ Background check already in progress, skipping...');
+        return;
+      }
+      
+      try {
+        isProcessing = true;
+        console.log('🔄 Background: Checking for expired voting bets...');
+        const result = await dataService.checkExpiredVotingBets();
+        console.log('✅ Background check result:', result);
+        
+        // Refresh data after processing
+        await loadAllData();
+      } catch (error) {
+        console.error('❌ Error checking expired bets:', error);
+      } finally {
+        isProcessing = false;
+      }
+    };
+
+    // Check immediately on mount
+    checkExpiredBets();
+
+    // Set up interval to check every 5 minutes
+    const interval = setInterval(checkExpiredBets, 5 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [loadAllData]);
+
+  // ============================================================================
   // INITIALIZATION AND CLEANUP
   // ============================================================================
 
@@ -768,8 +806,17 @@ export default function BetMeApp() {
         return;
       }
 
+      // 🆕 NEW: Set voting start time for 3-day window tracking
+      const votingStartTime = new Date().toISOString();
+      
       // Update bet status immediately for UI responsiveness
-      const updatedBet = { ...currentBet, status: BET_STATUS.VOTING };
+      const updatedBet = { 
+        ...currentBet, 
+        status: BET_STATUS.VOTING,
+        votingStartTime: votingStartTime,
+        votedWithinWindow: {},
+        majorityPunishmentApplied: false
+      };
       console.log('🗳️ Updated bet for voting:', updatedBet);
       
       // Force immediate UI update
@@ -786,7 +833,12 @@ export default function BetMeApp() {
       }
       
       // Save to data service
-      await dataService.updateBet(betId, { status: BET_STATUS.VOTING });
+      await dataService.updateBet(betId, { 
+        status: BET_STATUS.VOTING,
+        votingStartTime: votingStartTime,
+        votedWithinWindow: {},
+        majorityPunishmentApplied: false
+      });
       console.log('🗳️ Voting started successfully in data service');
       
       showSuccess('Voting started! All participants can now vote.');
@@ -816,11 +868,27 @@ export default function BetMeApp() {
       console.log('🗳️ Found bet:', currentBet);
       console.log('🗳️ Current votes:', currentBet.votes);
 
+      // 🆕 NEW: Check if voting window has expired
+      const { isVotingWindowExpired } = require('./utils.js');
+      if (currentBet.votingStartTime && isVotingWindowExpired(currentBet.votingStartTime)) {
+        console.log('❌ Voting window has expired for bet:', betId);
+        showError('Voting window has expired. This bet will be annulled.');
+        return;
+      }
+
+      // 🆕 NEW: Track if vote is within the 3-day window
+      const votedWithinWindow = { ...currentBet.votedWithinWindow };
+      votedWithinWindow[voterName] = true;
+
       const newVotes = { ...currentBet.votes, [voterName]: winner };
       console.log('🗳️ New votes object:', newVotes);
       
       // 🎯 FIXED: Update bet with new votes immediately for UI responsiveness
-      const updatedBet = { ...currentBet, votes: newVotes };
+      const updatedBet = { 
+        ...currentBet, 
+        votes: newVotes,
+        votedWithinWindow: votedWithinWindow
+      };
       console.log('🗳️ Updated bet object:', updatedBet);
       
       // 🎯 FIXED: Force immediate UI update
@@ -840,38 +908,36 @@ export default function BetMeApp() {
       showSuccess('✅ Vote submitted!');
       
       // 🎯 FIXED: Save to data service in background
-      dataService.updateBet(betId, { votes: newVotes }).then(() => {
+      dataService.updateBet(betId, { 
+        votes: newVotes,
+        votedWithinWindow: votedWithinWindow
+      }).then(() => {
         console.log('🗳️ Saved to data service successfully');
       }).catch(error => {
         console.error('❌ Error saving vote to data service:', error);
         showError('Vote submitted but failed to save. Please try again.');
       });
       
-      // 🎯 FIXED: Check if voting is complete
+      // 🆕 NEW: Check if all participants have voted within the window
+      const { hasAllParticipantsVoted, calculateAbsoluteMajority } = require('./utils.js');
       const participants = currentBet.participants;
       console.log('🗳️ Participants:', participants);
       
-      const hasAllVotes = participants.every(participantId => {
-        const participant = users.find(u => u.id === participantId);
-        const hasVoted = participant && newVotes[participant.username];
-        console.log(`🗳️ Participant ${participant?.username} (${participantId}) has voted:`, hasVoted);
-        return hasVoted;
-      });
+      const allVoted = hasAllParticipantsVoted(updatedBet, users);
+      console.log('🗳️ All participants voted:', allVoted);
 
-      console.log('🗳️ Has all votes:', hasAllVotes);
-
-      if (hasAllVotes) {
-        console.log('🗳️ VOTING COMPLETE - Calculating winner...');
+      if (allVoted) {
+        console.log('🗳️ ALL PARTICIPANTS VOTED - Checking for absolute majority...');
         
-        // Calculate winner and complete bet
-        const majorityVote = calculateMajorityVote(newVotes);
-        console.log('🗳️ Majority vote result:', majorityVote);
+        // 🆕 NEW: Check for absolute majority (more than 50% of ALL participants)
+        const absoluteMajority = calculateAbsoluteMajority(newVotes, participants.length);
+        console.log('🗳️ Absolute majority result:', absoluteMajority);
         
-        if (majorityVote) {
+        if (absoluteMajority) {
           const completedBet = { 
             ...updatedBet, 
             status: BET_STATUS.COMPLETED, 
-            winner: majorityVote 
+            winner: absoluteMajority 
           };
           
           console.log('🗳️ Completed bet object:', completedBet);
@@ -881,14 +947,14 @@ export default function BetMeApp() {
           setSelectedBet(completedBet);
           
           // 🎯 FIXED: Show completion message immediately
-          showSuccess(`🎉 Voting complete! Winner: ${majorityVote}`);
+          showSuccess(`🎉 Voting complete! Winner: ${absoluteMajority}`);
           
           // 🎯 FIXED: Process background operations
           Promise.all([
             // Save to data service
             dataService.updateBet(betId, { 
               status: BET_STATUS.COMPLETED, 
-              winner: majorityVote 
+              winner: absoluteMajority 
             }),
             // Process token redistribution
             processTokenRedistribution(completedBet),
@@ -901,10 +967,10 @@ export default function BetMeApp() {
             showError('Voting completed but some operations failed. Please check.');
           });
         } else {
-          showError('No clear winner. Voting will continue.');
+          showError('No absolute majority reached. Voting will continue until 3-day window expires.');
         }
       } else {
-        console.log('🗳️ Voting not complete yet');
+        console.log('🗳️ Not all participants have voted yet');
       }
       
     } catch (error) {
