@@ -1,32 +1,64 @@
 import React from 'react';
-import { Plus, Users, User, Trophy, MessageCircle } from 'lucide-react';
-import { getStatusColor, getStatusText, getStatusIcon, getUserName, getCredibilityColor, getCredibilityBadge } from '../utils.js';
+import { motion } from 'framer-motion';
+import { Plus, Users, Trophy, MessageCircle } from 'lucide-react';
+import { getStatusColor, getStatusText, getStatusIcon, getUserName, getCredibilityBadge } from '../utils.js';
 import LoadingSpinner from './LoadingSpinner.js';
 
-function HomeView({ currentUser, bets, users, invitations, onLogout, onCreateBet, onViewInvitations, onViewProfile, onViewCredibility, onViewBet, isLoading = false }) {
+function HomeView({ currentUser, bets, users, invitations, onLogout, onCreateBet, onViewInvitations, onViewProfile, onViewCredibility, onViewTokenHistory, onViewBet, isLoading = false }) {
   const userBets = bets.filter(bet => bet.participants.includes(currentUser.id));
   const pendingInvitations = invitations.filter(inv => 
     inv.toUserId === currentUser.id && inv.status === 'pending'
   ).length;
 
+  // Debug logging
+  console.log('🏠 HomeView Debug:', {
+    currentUser: currentUser?.username,
+    currentUserId: currentUser?.id,
+    totalBets: bets.length,
+    userBetsCount: userBets.length,
+    totalInvitations: invitations.length,
+    pendingInvitations,
+    userBetsList: userBets.map(b => ({ 
+      id: b.id, 
+      title: b.title, 
+      status: b.status,
+      participants: b.participants,
+      creatorId: b.creatorId
+    })),
+    allBets: bets.map(b => ({ 
+      id: b.id, 
+      title: b.title, 
+      participants: b.participants,
+      creatorId: b.creatorId
+    }))
+  });
+
   return (
     <div className="max-w-md mx-auto bg-white min-h-screen">
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
+      <div className="bg-primary-500 text-white p-6">
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold">Bet Me If You Can</h1>
-            <p className="text-blue-100 text-sm">Hey {currentUser.username}! 👋</p>
-            <div className="flex items-center space-x-2 text-blue-200 text-xs">
-              <span>💰 {currentUser.tokens} Tokens</span>
+            <p className="text-primary-100 text-sm">Hey {currentUser.username}! 👋</p>
+            <div className="flex items-center space-x-2 text-primary-200 text-xs">
+              <button
+                onClick={onViewTokenHistory}
+                className="text-white font-semibold hover:text-primary-100 transition-colors cursor-pointer"
+              >
+                💰 {currentUser.tokens} Tokens
+              </button>
               <span>•</span>
-              <span className={getCredibilityColor(currentUser.credibility || 100)}>
+              <button
+                onClick={onViewCredibility}
+                className="text-white font-semibold hover:text-primary-100 transition-colors cursor-pointer"
+              >
                 🎯 {currentUser.credibility || 100}/100 Credibility
-              </span>
+              </button>
             </div>
           </div>
           <button 
             onClick={onLogout}
-            className="text-blue-100 hover:text-white text-sm"
+            className="text-primary-100 hover:text-white text-sm"
           >
             Logout
           </button>
@@ -34,45 +66,83 @@ function HomeView({ currentUser, bets, users, invitations, onLogout, onCreateBet
       </div>
 
       <div className="p-4 space-y-3">
-        <button
+        <motion.button
           onClick={onCreateBet}
-          className="w-full bg-green-500 text-white p-4 rounded-xl font-semibold flex items-center justify-center space-x-2 hover:bg-green-600 transition-colors"
+          className="w-full bg-accent-500 text-white p-4 rounded-xl font-semibold flex items-center justify-center space-x-2 hover:bg-accent-600 transition-colors relative overflow-hidden"
+          whileHover={{ 
+            scale: 1.02,
+            boxShadow: "0 10px 25px rgba(93, 163, 153, 0.3)"
+          }}
+          whileTap={{ scale: 0.98 }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ 
+            duration: 0.3,
+            type: "spring",
+            stiffness: 200
+          }}
         >
-          <Plus size={24} />
-          <span>Create New Bet</span>
-        </button>
+          <motion.div
+            className="absolute inset-0 bg-gradient-to-r from-accent-400 to-accent-600 opacity-0"
+            whileHover={{ opacity: 1 }}
+            transition={{ duration: 0.2 }}
+          />
+          <motion.div
+            className="relative z-10 flex items-center space-x-2"
+            whileHover={{ scale: 1.05 }}
+            transition={{ duration: 0.2 }}
+          >
+            <motion.div
+              whileHover={{ rotate: 90 }}
+              transition={{ duration: 0.3, type: "spring" }}
+            >
+              <Plus size={24} />
+            </motion.div>
+            <span>Create New Bet</span>
+          </motion.div>
+        </motion.button>
 
         {pendingInvitations > 0 && (
-          <button
+          <motion.button
             onClick={onViewInvitations}
-            className="w-full bg-orange-500 text-white p-4 rounded-xl font-semibold flex items-center justify-center space-x-2 hover:bg-orange-600 transition-colors relative"
+            className="w-full bg-secondary-500 text-white p-4 rounded-xl font-semibold flex items-center justify-center space-x-2 hover:bg-secondary-600 transition-colors relative"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ 
+              duration: 0.3,
+              delay: 0.1,
+              type: "spring",
+              stiffness: 200
+            }}
           >
-            <Users size={24} />
+            <motion.div
+              whileHover={{ scale: 1.1 }}
+              transition={{ duration: 0.2 }}
+            >
+              <Users size={24} />
+            </motion.div>
             <span>Invitations ({pendingInvitations})</span>
-            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center">
+            <motion.span 
+              className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center"
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ 
+                delay: 0.2,
+                type: "spring",
+                stiffness: 300
+              }}
+            >
               {pendingInvitations}
-            </span>
-          </button>
+            </motion.span>
+          </motion.button>
         )}
 
-        <button
-          onClick={onViewProfile}
-          className="w-full bg-purple-500 text-white p-4 rounded-xl font-semibold flex items-center justify-center space-x-2 hover:bg-purple-600 transition-colors"
-        >
-          <User size={24} />
-          <span>Profile</span>
-        </button>
 
-        <button
-          onClick={onViewCredibility}
-          className="w-full bg-indigo-500 text-white p-4 rounded-xl font-semibold flex items-center justify-center space-x-2 hover:bg-indigo-600 transition-colors"
-        >
-          <span className="text-lg">🎯</span>
-          <span>Credibility</span>
-        </button>
       </div>
 
-      <div className="px-4 pb-4 space-y-4">
+      <div className="px-4 pb-20 space-y-4">
         <h2 className="text-lg font-semibold text-gray-800">My Bets</h2>
         
         {isLoading ? (
@@ -84,11 +154,24 @@ function HomeView({ currentUser, bets, users, invitations, onLogout, onCreateBet
             <p className="text-sm">Create your first bet!</p>
           </div>
         ) : (
-          userBets.map(currentBet => (
-            <div
+          userBets.map((currentBet, index) => (
+            <motion.div
               key={currentBet.id}
               onClick={() => onViewBet(currentBet)}
               className="bg-white border rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ 
+                duration: 0.3,
+                delay: index * 0.1,
+                type: "spring",
+                stiffness: 200
+              }}
+              whileHover={{ 
+                scale: 1.02,
+                boxShadow: "0 8px 25px rgba(0, 0, 0, 0.1)"
+              }}
+              whileTap={{ scale: 0.98 }}
             >
               <div className="flex justify-between items-start mb-2">
                 <h3 className="font-semibold text-gray-800">{currentBet.title}</h3>
@@ -101,10 +184,10 @@ function HomeView({ currentUser, bets, users, invitations, onLogout, onCreateBet
                              <p className="text-gray-600 text-sm mb-3">{currentBet.description || 'No description'}</p>
               
               {currentBet.chatMessages && currentBet.chatMessages.length > 0 && (
-                <div className="mb-3 p-2 bg-purple-50 rounded-lg border-l-2 border-purple-300">
+                                <div className="mb-3 p-2 bg-primary-50 rounded-lg border-l-2 border-primary-300">
                   <div className="flex items-center space-x-2 mb-1">
-                    <MessageCircle size={12} className="text-purple-500" />
-                                         <span className="text-xs text-purple-600 font-medium">Last message:</span>
+                    <MessageCircle size={12} className="text-primary-500" />
+                    <span className="text-xs text-primary-600 font-medium">Last message:</span>
                   </div>
                   <p className="text-xs text-gray-700 truncate">
                     <span className="font-medium">{currentBet.chatMessages[currentBet.chatMessages.length - 1].username}:</span> {currentBet.chatMessages[currentBet.chatMessages.length - 1].message}
@@ -118,8 +201,8 @@ function HomeView({ currentUser, bets, users, invitations, onLogout, onCreateBet
                                      <span>{currentBet.participants.length} Participants</span>
                   {currentBet.chatMessages && currentBet.chatMessages.length > 0 && (
                     <div className="flex items-center space-x-1 ml-2">
-                      <MessageCircle size={14} className="text-purple-500" />
-                      <span className="text-purple-600 text-xs font-medium">
+                      <MessageCircle size={14} className="text-primary-500" />
+                      <span className="text-primary-600 text-xs font-medium">
                         {currentBet.chatMessages.length}
                       </span>
                     </div>
@@ -135,7 +218,7 @@ function HomeView({ currentUser, bets, users, invitations, onLogout, onCreateBet
                   </div>
                 </div>
               </div>
-            </div>
+            </motion.div>
           ))
         )}
       </div>

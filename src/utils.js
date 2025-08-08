@@ -114,10 +114,17 @@ export const calculateMajorityVote = (votes) => {
     voteCounts[vote] = (voteCounts[vote] || 0) + 1;
   });
   
+  const totalVotes = Object.values(voteCounts).reduce((sum, count) => sum + count, 0);
   const maxVotes = Math.max(...Object.values(voteCounts));
   const majorityOutcomes = Object.keys(voteCounts).filter(outcome => voteCounts[outcome] === maxVotes);
   
-  return majorityOutcomes.length === 1 ? majorityOutcomes[0] : null;
+  // 🎯 FIXED: Only return a winner if there's a clear majority (more than 50% of votes)
+  // AND there's only one outcome with the maximum votes
+  if (majorityOutcomes.length === 1 && maxVotes > totalVotes / 2) {
+    return majorityOutcomes[0];
+  }
+  
+  return null;
 };
 
 export const getNonVoters = (bet, users) => {

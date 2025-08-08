@@ -1,8 +1,8 @@
 import React from 'react';
-import { ArrowLeft, Camera, Wallet, Share2, Users, User, Copy, Trash2 } from 'lucide-react';
+import { ArrowLeft, Camera, Wallet, Share2, Users, User, Copy, Trash2, Target } from 'lucide-react';
 import { getFriends } from '../utils.js';
 
-function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBack, onUploadPhoto, onGenerateInvite, onCopyInvite, onRemoveFriend }) {
+function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBack, onUploadPhoto, onGenerateInvite, onCopyInvite, onRemoveFriend, onViewTokenHistory, onViewCredibility }) {
   const friends = getFriends(currentUser.id, users);
   const currentProfilePhoto = userProfiles[currentUser.id];
   const currentInviteLink = inviteLinks[currentUser.id];
@@ -15,22 +15,22 @@ function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBa
   return (
     <div className="max-w-md mx-auto bg-white min-h-screen">
       {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-6">
+      <div className="bg-primary-500 text-white p-6">
         <div className="flex items-center space-x-4">
           <button 
             onClick={onBack}
-            className="text-white hover:text-purple-100"
+            className="text-white hover:text-primary-100"
           >
             <ArrowLeft size={24} />
           </button>
           <div>
             <h1 className="text-2xl font-bold">Profile</h1>
-            <p className="text-purple-100 text-sm">{currentUser.username}</p>
+            <p className="text-primary-100 text-sm">{currentUser.username}</p>
           </div>
         </div>
       </div>
 
-      <div className="p-6 space-y-6">
+      <div className="p-6 pb-20 space-y-6">
         {/* Profile Photo Section */}
         <div className="bg-white border rounded-xl p-6 shadow-sm">
                       <h2 className="text-lg font-semibold mb-4 flex items-center">
@@ -44,11 +44,11 @@ function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBa
                 <img 
                   src={currentProfilePhoto} 
                   alt="Profile" 
-                  className="w-20 h-20 rounded-full object-cover border-2 border-purple-200"
+                  className="w-20 h-20 rounded-full object-cover border-2 border-primary-200"
                 />
               ) : (
-                <div className="w-20 h-20 rounded-full bg-purple-100 flex items-center justify-center border-2 border-purple-200">
-                  <User size={32} className="text-purple-400" />
+                <div className="w-20 h-20 rounded-full bg-primary-100 flex items-center justify-center border-2 border-primary-200">
+                  <User size={32} className="text-primary-400" />
                 </div>
               )}
             </div>
@@ -68,7 +68,7 @@ function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBa
               />
               <label
                 htmlFor="profile-photo-input"
-                className="bg-purple-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-purple-600 transition-colors cursor-pointer inline-block"
+                className="bg-primary-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-600 transition-colors cursor-pointer inline-block"
               >
                 Upload Photo
               </label>
@@ -86,7 +86,10 @@ function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBa
             Token Wallet
           </h2>
           
-          <div className="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-lg p-4 text-white">
+          <button
+            onClick={onViewTokenHistory}
+            className="w-full bg-accent-500 rounded-lg p-4 text-white hover:bg-accent-600 transition-colors cursor-pointer"
+          >
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm opacity-90">Current Balance</p>
@@ -99,7 +102,10 @@ function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBa
                 </p>
               </div>
             </div>
-          </div>
+            <div className="mt-2 text-center">
+              <p className="text-xs opacity-75">Click to view token history</p>
+            </div>
+          </button>
           
           <div className="mt-4 grid grid-cols-2 gap-3">
             <div className="bg-gray-50 rounded-lg p-3 text-center">
@@ -117,6 +123,59 @@ function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBa
           </div>
         </div>
 
+        {/* Credibility Stats Section */}
+        <div className="bg-white border rounded-xl p-6 shadow-sm">
+          <h2 className="text-lg font-semibold mb-4 flex items-center">
+            <Target size={20} className="mr-2" />
+            Credibility Stats
+          </h2>
+          
+          <button
+            onClick={onViewCredibility}
+            className="w-full bg-secondary-500 rounded-lg p-4 text-white hover:bg-secondary-600 transition-colors cursor-pointer"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm opacity-90">Current Score</p>
+                <p className="text-3xl font-bold">{currentUser.credibility || 100}/100</p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm opacity-90">Status</p>
+                <p className="text-lg font-semibold">
+                  {currentUser.credibility >= 80 ? '🎯 Excellent' : 
+                   currentUser.credibility >= 60 ? '🎯 Good' : 
+                   currentUser.credibility >= 40 ? '🎯 Fair' : '🎯 Poor'}
+                </p>
+              </div>
+            </div>
+            <div className="mt-2 text-center">
+              <p className="text-xs opacity-75">Click to view credibility history</p>
+            </div>
+          </button>
+          
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="bg-gray-50 rounded-lg p-3 text-center">
+              <p className="text-sm text-gray-600">Total Bets</p>
+              <p className="text-xl font-bold text-gray-800">
+                {bets ? bets.filter(bet => 
+                  bet.participants.includes(currentUser.id) && bet.status === 'completed'
+                ).length : 0}
+              </p>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3 text-center">
+              <p className="text-sm text-gray-600">Wins</p>
+              <p className="text-xl font-bold text-gray-800">
+                {bets ? bets.filter(bet => 
+                  bet.participants.includes(currentUser.id) && 
+                  bet.status === 'completed' && 
+                  bet.winner && 
+                  bet.participantBets?.[currentUser.id] === bet.winner
+                ).length : 0}
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* Invite Link Section */}
         <div className="bg-white border rounded-xl p-6 shadow-sm">
           <h2 className="text-lg font-semibold mb-4 flex items-center">
@@ -126,8 +185,8 @@ function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBa
           
           <div className="space-y-3">
             {currentInviteLink ? (
-              <div className="bg-purple-50 rounded-lg p-3">
-                <p className="text-sm text-purple-600 font-medium mb-2">Your invitation link:</p>
+                          <div className="bg-primary-50 rounded-lg p-3">
+              <p className="text-sm text-primary-600 font-medium mb-2">Your invitation link:</p>
                 <div className="flex items-center space-x-2">
                   <input
                     type="text"
@@ -137,7 +196,7 @@ function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBa
                   />
                   <button
                     onClick={() => onCopyInvite(currentInviteLink)}
-                    className="bg-purple-500 text-white p-2 rounded hover:bg-purple-600 transition-colors"
+                    className="bg-primary-500 text-white p-2 rounded hover:bg-primary-600 transition-colors"
                   >
                     <Copy size={16} />
                   </button>
@@ -146,7 +205,7 @@ function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBa
             ) : (
               <button
                 onClick={() => onGenerateInvite(currentUser.id)}
-                className="w-full bg-purple-500 text-white p-3 rounded-lg font-semibold hover:bg-purple-600 transition-colors flex items-center justify-center space-x-2"
+                className="w-full bg-primary-500 text-white p-3 rounded-lg font-semibold hover:bg-primary-600 transition-colors flex items-center justify-center space-x-2"
               >
                 <Share2 size={20} />
                 <span>Create Invitation Link</span>
@@ -184,8 +243,8 @@ function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBa
                         className="w-10 h-10 rounded-full object-cover"
                       />
                     ) : (
-                      <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
-                        <User size={20} className="text-purple-400" />
+                                      <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center">
+                  <User size={20} className="text-primary-400" />
                       </div>
                     )}
                     <div>

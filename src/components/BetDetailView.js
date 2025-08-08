@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Users, Vote, Trophy, MessageCircle, Send, Share2, UserPlus } from 'lucide-react';
+import { ArrowLeft, Users, Vote, Trophy, MessageCircle, Send, Share2, UserPlus, Coins } from 'lucide-react';
 import { getUserName, getStatusColor, getStatusText, getStatusIcon, hasVoted, getVoteCount, formatTime } from '../utils.js';
 import { useToast } from '../contexts/ToastContext.js';
 import { dataService } from '../services/dataService.js';
@@ -150,6 +150,67 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
     user.id !== currentUser.id
   );
 
+  // 🎯 NEW: Calculate token results for each participant
+  const calculateTokenResults = () => {
+    if (bet.status !== 'completed' || !bet.winner) return [];
+    
+    const totalStakes = bet.stakeTokens * bet.participants.length;
+    const platformFee = Math.floor(totalStakes * 0.03);
+    const availableForWinners = totalStakes - platformFee;
+    
+    const winners = [];
+    const losers = [];
+    
+    // Determine winners and losers
+    bet.participants.forEach(participantId => {
+      const participantBet = bet.participantBets[participantId];
+      if (participantBet === bet.winner) {
+        winners.push(participantId);
+      } else {
+        losers.push(participantId);
+      }
+    });
+    
+    const payoutPerWinner = winners.length > 0 ? Math.floor(availableForWinners / winners.length) : 0;
+    
+    // Calculate results for each participant
+    return bet.participants.map(participantId => {
+      const participant = users.find(u => u.id === participantId);
+      const participantBet = bet.participantBets[participantId];
+      const isWinner = winners.includes(participantId);
+      
+      if (isWinner) {
+        const totalPayout = bet.stakeTokens + payoutPerWinner;
+        return {
+          participantId,
+          username: participant?.username || 'Unknown',
+          result: 'won',
+          tokens: totalPayout,
+          stakeReturned: bet.stakeTokens,
+          winnings: payoutPerWinner,
+          betOn: participantBet
+        };
+      } else {
+        return {
+          participantId,
+          username: participant?.username || 'Unknown',
+          result: 'lost',
+          tokens: -bet.stakeTokens,
+          stakeLost: bet.stakeTokens,
+          winnings: 0,
+          betOn: participantBet
+        };
+      }
+    });
+  };
+
+  // 🎯 NEW: Check if current user won
+  const didCurrentUserWin = () => {
+    if (bet.status !== 'completed' || !bet.winner) return null;
+    const userBet = bet.participantBets[currentUser.id];
+    return userBet === bet.winner;
+  };
+
   const totalPot = bet.stakeTokens * bet.participants.length;
   const appFee = Math.floor(totalPot * 0.03);
   const winnersReward = totalPot - appFee;
@@ -222,7 +283,6 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
                       <div className="text-sm text-gray-500">Betting on: {userBet}</div>
                     )}
                   </div>
-                  <div className="text-sm text-gray-500">💰 {participant?.tokens}</div>
                 </div>
               );
             })}
@@ -293,15 +353,62 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
 
         {/* Winner Section */}
         {bet.status === 'completed' && bet.winner && (
-          <div className="bg-white border rounded-xl p-4 shadow-sm">
-            <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
-              <Trophy size={20} className="mr-2 text-yellow-500" />
-              🎉 Winner Announced!
+          <div className={`border rounded-xl p-4 shadow-sm ${
+            didCurrentUserWin() === true 
+              ? 'bg-gradient-to-br from-yellow-50 to-amber-50 border-yellow-200' 
+              : didCurrentUserWin() === false 
+                ? 'bg-gradient-to-br from-gray-50 to-slate-50 border-gray-200'
+                : 'bg-white border-gray-200'
+          }`}>
+            <h3 className={`font-semibold mb-3 flex items-center ${
+              didCurrentUserWin() === true 
+                ? 'text-yellow-800' 
+                : didCurrentUserWin() === false 
+                  ? 'text-gray-800'
+                  : 'text-gray-800'
+            }`}>
+              <Trophy size={20} className={`mr-2 ${
+                didCurrentUserWin() === true 
+                  ? 'text-yellow-600' 
+                  : didCurrentUserWin() === false 
+                    ? 'text-gray-600'
+                    : 'text-yellow-500'
+              }`} />
+              {didCurrentUserWin() === true 
+                ? '🏆 You Won! - Winner Announced!' 
+                : didCurrentUserWin() === false 
+                  ? '🏆 Winner Announced!'
+                  : '🎉 Winner Announced!'
+              }
             </h3>
-            <div className="bg-yellow-50 rounded-lg p-4 border-2 border-yellow-200">
-              <div className="font-bold text-xl text-yellow-800 mb-2">{bet.winner}</div>
-              <div className="text-sm text-yellow-600 mb-3">
-                Win for all who bet correctly: {Math.floor((bet.stakeTokens * bet.participants.length) * 0.97)} 🪙
+            <div className={`rounded-lg p-4 border-2 ${
+              didCurrentUserWin() === true 
+                ? 'bg-yellow-50 border-yellow-200' 
+                : didCurrentUserWin() === false 
+                  ? 'bg-gray-50 border-gray-200'
+                  : 'bg-yellow-50 border-yellow-200'
+            }`}>
+              <div className={`font-bold text-xl mb-2 ${
+                didCurrentUserWin() === true 
+                  ? 'text-yellow-800' 
+                  : didCurrentUserWin() === false 
+                    ? 'text-gray-700'
+                    : 'text-yellow-800'
+              }`}>
+                {bet.winner}
+                {didCurrentUserWin() === true && ' 🎉'}
+              </div>
+              <div className={`text-sm mb-3 ${
+                didCurrentUserWin() === true 
+                  ? 'text-yellow-600' 
+                  : didCurrentUserWin() === false 
+                    ? 'text-gray-600'
+                    : 'text-yellow-600'
+              }`}>
+                {didCurrentUserWin() === true 
+                  ? `Congratulations! You won ${Math.floor((bet.stakeTokens * bet.participants.length) * 0.97)} 🪙`
+                  : `Win for all who bet correctly: ${Math.floor((bet.stakeTokens * bet.participants.length) * 0.97)} 🪙`
+                }
               </div>
               
               {/* Show final vote counts */}
@@ -314,6 +421,112 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
                       <span className="font-medium">{getVoteCount(outcome, bet)} votes</span>
                     </div>
                   ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 🎯 NEW: Token Results Section */}
+        {bet.status === 'completed' && bet.winner && (
+          <div className={`border rounded-xl p-4 shadow-sm ${
+            didCurrentUserWin() === true 
+              ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-200' 
+              : didCurrentUserWin() === false 
+                ? 'bg-gradient-to-br from-red-50 to-rose-50 border-red-200'
+                : 'bg-white border-gray-200'
+          }`}>
+            <h3 className={`font-semibold mb-3 flex items-center ${
+              didCurrentUserWin() === true 
+                ? 'text-green-800' 
+                : didCurrentUserWin() === false 
+                  ? 'text-red-800'
+                  : 'text-gray-800'
+            }`}>
+              <Coins size={20} className={`mr-2 ${
+                didCurrentUserWin() === true 
+                  ? 'text-green-600' 
+                  : didCurrentUserWin() === false 
+                    ? 'text-red-600'
+                    : 'text-gray-600'
+              }`} />
+              {didCurrentUserWin() === true 
+                ? '🎉 You Won! - Token Results' 
+                : didCurrentUserWin() === false 
+                  ? '😔 You Lost - Token Results'
+                  : 'Token Results'
+              }
+            </h3>
+            
+            <div className="space-y-3">
+              {calculateTokenResults().map((result, index) => {
+                const isCurrentUser = result.participantId === currentUser.id;
+                return (
+                  <div 
+                    key={result.participantId} 
+                    className={`p-3 rounded-lg border-2 ${
+                      result.result === 'won' 
+                        ? 'border-green-200 bg-green-50' 
+                        : 'border-red-200 bg-red-50'
+                    } ${isCurrentUser ? 'ring-2 ring-blue-300' : ''}`}
+                  >
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-medium">
+                          {result.username}
+                          {isCurrentUser && ' (You)'}
+                        </span>
+                        {result.result === 'won' ? (
+                          <span className="text-green-600 text-sm">✅ Won</span>
+                        ) : (
+                          <span className="text-red-600 text-sm">❌ Lost</span>
+                        )}
+                      </div>
+                      <div className={`font-bold text-lg ${
+                        result.result === 'won' ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {result.result === 'won' ? '+' : ''}{result.tokens} 🪙
+                      </div>
+                    </div>
+                    
+                    {/* 🎯 NEW: Show what they bet on */}
+                    <div className="mt-2 text-sm text-gray-600">
+                      <div className="flex items-center space-x-1">
+                        <span>Bet on:</span>
+                        <span className={`font-medium px-2 py-1 rounded text-xs ${
+                          result.betOn === bet.winner 
+                            ? 'bg-green-100 text-green-700' 
+                            : 'bg-red-100 text-red-700'
+                        }`}>
+                          {result.betOn}
+                        </span>
+                        {result.betOn === bet.winner && (
+                          <span className="text-green-600">✓</span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {result.result === 'won' && (
+                      <div className="mt-2 text-sm text-green-700">
+                        <div>Stake returned: +{result.stakeReturned} 🪙</div>
+                        <div>Winnings: +{result.winnings} 🪙</div>
+                      </div>
+                    )}
+                    
+                    {result.result === 'lost' && (
+                      <div className="mt-2 text-sm text-red-700">
+                        <div>Stake lost: -{result.stakeLost} 🪙</div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              
+              {/* Platform fee summary */}
+              <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-600">Platform Fee (3%):</span>
+                  <span className="font-medium text-gray-800">-{Math.floor((bet.stakeTokens * bet.participants.length) * 0.03)} 🪙</span>
                 </div>
               </div>
             </div>
@@ -359,7 +572,6 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
                   className="p-3 rounded-lg border-2 border-gray-200 hover:border-primary-300 transition-colors text-left"
                 >
                   <div className="font-medium">{user.username}</div>
-                  <div className="text-sm text-gray-500">💰 {user.tokens} Tokens</div>
                 </button>
               ))}
             </div>

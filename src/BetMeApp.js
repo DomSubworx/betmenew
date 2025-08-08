@@ -35,6 +35,7 @@ export default function BetMeApp() {
   const [selectedBet, setSelectedBet] = useState(null);
   const [selectedInvitation, setSelectedInvitation] = useState(null);
   const [inviteLinks, setInviteLinks] = useState({});
+  const [previousView, setPreviousView] = useState('home');
   
   // Refs for preventing duplicate processing
   const processedCredibilityBetsRef = useRef(new Set());
@@ -96,15 +97,16 @@ export default function BetMeApp() {
     try {
       console.log(`🎯 Loading invitations for user ${userId}...`);
       
-      // Load all invitations for the user (not just pending ones)
-      const allInvitations = await dataService.getInvitations(); // No userId filter
-      console.log('🎯 All invitations from data service:', allInvitations);
+      // Load invitations for the user with proper filtering
+      const allInvitations = await dataService.getInvitations(userId); // Pass userId to get only user's invitations
+      console.log('🎯 Invitations from data service for user:', allInvitations);
       
-      const userInvitations = allInvitations.filter(inv => inv.toUserId === userId);
-      console.log(`🎯 Filtered invitations for user ${userId}:`, userInvitations);
+      // Filter to only show pending invitations (declined invitations should not appear)
+      const pendingInvitations = allInvitations.filter(inv => inv.status === 'pending');
+      console.log(`🎯 Pending invitations for user ${userId}:`, pendingInvitations);
       
-      setInvitations(userInvitations);
-      console.log(`✅ Loaded ${userInvitations.length} invitations for user ${userId} (${userInvitations.filter(inv => inv.status === 'pending').length} pending)`);
+      setInvitations(pendingInvitations);
+      console.log(`✅ Loaded ${pendingInvitations.length} pending invitations for user ${userId}`);
     } catch (error) {
       console.error('❌ Error loading invitations:', error);
       showError('Failed to load invitations.');
@@ -506,10 +508,15 @@ export default function BetMeApp() {
       // Update invitation status
       await dataService.updateInvitationStatus(invitationId, response);
       
-      // Refresh invitations to ensure state is in sync
-      await loadUserInvitations(currentUser.id);
-      
-      showSuccess(`Invitation ${response}!`);
+      // 🎯 FIXED: Immediately remove declined invitations from local state for instant UI update
+      if (response === 'declined') {
+        setInvitations(prev => prev.filter(inv => inv.id !== invitationId));
+        showSuccess('Invitation declined!');
+      } else {
+        // For accepted invitations, refresh to ensure state is in sync
+        await loadUserInvitations(currentUser.id);
+        showSuccess('Invitation accepted!');
+      }
       
     } catch (error) {
       console.error('❌ Error responding to invitation:', error);
@@ -858,6 +865,7 @@ export default function BetMeApp() {
 
       if (hasAllVotes) {
         console.log('🗳️ VOTING COMPLETE - Calculating winner...');
+        
         // Calculate winner and complete bet
         const majorityVote = calculateMajorityVote(newVotes);
         console.log('🗳️ Majority vote result:', majorityVote);
@@ -984,7 +992,11 @@ export default function BetMeApp() {
             onLogout={handleLogout}
             onCreateBet={() => setCurrentView('create')}
             onViewInvitations={() => setCurrentView('invitations')}
-            onViewCredibility={() => setCurrentView('credibility')}
+            onViewCredibility={() => {
+              setPreviousView('home');
+              setCurrentView('credibility');
+            }}
+            onViewTokenHistory={() => setCurrentView('tokenHistory')}
             onViewBet={(bet) => {
               setSelectedBet(bet);
               setCurrentView('detail');
@@ -1000,7 +1012,10 @@ export default function BetMeApp() {
             userProfiles={userProfiles}
             inviteLinks={inviteLinks}
             onBack={() => setCurrentView('home')}
-            onViewCredibility={() => setCurrentView('credibility')}
+            onViewCredibility={() => {
+              setPreviousView('profile');
+              setCurrentView('credibility');
+            }}
             onViewTokenHistory={() => setCurrentView('tokenHistory')}
             onUploadPhoto={uploadProfilePhoto}
             onGenerateInviteLink={generateInviteLink}
@@ -1149,7 +1164,7 @@ export default function BetMeApp() {
           currentUser={currentUser}
           credibilityLogs={credibilityLogs}
           users={users}
-          onBack={() => setCurrentView('profile')}
+          onBack={() => setCurrentView(previousView)}
         />
       )}
       
@@ -1158,7 +1173,7 @@ export default function BetMeApp() {
           currentUser={currentUser}
           tokenLogs={tokenLogs}
           users={users}
-          onBack={() => setCurrentView('profile')}
+          onBack={() => setCurrentView('home')}
         />
       )}
       
