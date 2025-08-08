@@ -234,7 +234,24 @@ export const dataService = {
   resetDemoData() {
     if (isDemoMode()) {
       return demoDataService.resetDemoData();
+          }
+      console.warn('resetDemoData only available in demo mode');
+    },
+
+    // 🆕 NEW: Function to log consolidated bet results
+    addBetResultLog(userId, betId, betTitle, finalDelta, reason) {
+      if (isDemoMode()) {
+        return demoDataService.addBetResultLog(userId, betId, betTitle, finalDelta, reason);
+      } else {
+        return supabaseService.addBetResultLog(userId, betId, betTitle, finalDelta, reason);
+      }
+    },
+
+    logBetFinalResult(userId, betId, betTitle, bet) {
+      if (isDemoMode()) {
+        return demoDataService.logBetFinalResult(userId, betId, betTitle, bet);
+      } else {
+        return supabaseService.logBetFinalResult(userId, betId, betTitle, bet);
+      }
     }
-    console.warn('resetDemoData only available in demo mode');
-  }
-}; 
+  };  

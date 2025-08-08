@@ -407,7 +407,7 @@ export default function BetMeApp() {
         description: betData.description,
         creatorId: currentUser.id,
         participants: [currentUser.id], // Only include creator initially
-        participantBets: { [currentUser.id]: betData.participantBets?.[currentUser.id] || betData.outcomes[0] }, // Only creator's bet initially
+        participantBets: { [currentUser.id]: betData.creatorChoice }, // 🆕 FIXED: Use creator's explicit choice
         stakeTokens: stakeTokens,
         status: BET_STATUS.ACTIVE,
         votes: {},
@@ -702,10 +702,12 @@ export default function BetMeApp() {
       for (const participantId of bet.participants) {
         const participant = users.find(u => u.id === participantId);
         if (participant) {
-                  // Return the stake that was deducted when joining
-        const newTokens = participant.tokens + bet.stakeTokens;
-        await dataService.updateUserTokens(participantId, newTokens, 'stake_returned_tie', bet.id, bet.title);
-        console.log(`💰 Participant ${participant.username}: stake returned (new total: ${newTokens})`);
+                  // No token changes for tie - stakes were never deducted
+        // Just log the consolidated result
+        
+        // 🆕 NEW: Log consolidated bet result (tie)
+        await dataService.logBetFinalResult(participantId, bet.id, bet.title, bet);
+        console.log(`💰 Participant ${participant.username}: tie result logged`);
         }
       }
       console.log(`💰 Platform fee collected: ${platformFee} tokens (from tie scenario)`);
@@ -726,19 +728,28 @@ export default function BetMeApp() {
         // 🎯 CRITICAL FIX: payoutPerWinner is the total amount each winner should get
         // (includes their stake + their share of the pot)
         const newTokens = winner.tokens + payoutPerWinner;
-        await dataService.updateUserTokens(winnerId, newTokens, 'bet_won', bet.id, bet.title);
-        console.log(`💰 Winner ${winner.username}: +${payoutPerWinner} tokens (total payout, new total: ${newTokens})`);
+        await dataService.updateUserTokens(winnerId, newTokens, 'bet_stake', bet.id, bet.title); // Use bet_stake to avoid logging
+        
+        // 🆕 NEW: Log consolidated bet result (win)
+        await dataService.logBetFinalResult(winnerId, bet.id, bet.title, bet);
+        console.log(`💰 Winner ${winner.username}: win result logged`);
       }
     }
 
-    // 🎯 FIXED: Process losers correctly
-    // Losers have already lost their stake when joining - no additional deduction needed
-    for (const loserId of losers) {
-      const loser = users.find(u => u.id === loserId);
-      if (loser) {
-        console.log(`💰 Loser ${loser.username}: stake already deducted when joining (no additional loss)`);
+          // 🎯 FIXED: Process losers correctly
+      // Losers need to have their stake deducted now
+      for (const loserId of losers) {
+        const loser = users.find(u => u.id === loserId);
+        if (loser) {
+          // Deduct stake from losers
+          const newTokens = loser.tokens - bet.stakeTokens;
+          await dataService.updateUserTokens(loserId, newTokens, 'bet_stake', bet.id, bet.title);
+          
+          // 🆕 NEW: Log consolidated bet result (loss)
+          await dataService.logBetFinalResult(loserId, bet.id, bet.title, bet);
+          console.log(`💰 Loser ${loser.username}: loss result logged`);
+        }
       }
-    }
 
     // 🎯 PLATFORM FEE: Log the fee collection
     console.log(`💰 Platform fee collected: ${platformFee} tokens`);
@@ -1151,9 +1162,9 @@ export default function BetMeApp() {
           onOutcomeChosen={async (outcome) => {
             console.log('🎯 User chose outcome:', { outcome, betId: selectedBet.id, userId: currentUser.id });
             
-            // 🎯 FIXED: Update local state immediately for UI responsiveness
-            const newUserTokens = currentUser.tokens - selectedBet.stakeTokens;
-            setCurrentUser(prev => ({ ...prev, tokens: newUserTokens }));
+            // 🎯 FIXED: DON'T deduct tokens when joining - only track participation
+            // Tokens will be handled in final consolidated result
+            setCurrentUser(prev => ({ ...prev, tokens: prev.tokens })); // Keep same tokens
             
             // 🎯 FIXED: Update bet state immediately
             const updatedBet = {
@@ -1183,8 +1194,8 @@ export default function BetMeApp() {
             
             // 🎯 FIXED: Process background operations
             try {
-              // Deduct tokens
-              await updateUserTokens(currentUser.id, newUserTokens, 'bet_stake', selectedBet.id, selectedBet.title);
+              // DON'T deduct tokens - only track participation
+              // Tokens will be handled in final consolidated result
               
               // 🎯 VALIDATION: Ensure token conservation after joining bet
               if (!validateTokenConservation('bet joining')) {

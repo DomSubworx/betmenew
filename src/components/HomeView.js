@@ -4,6 +4,7 @@ import { Plus, Users, Trophy, MessageCircle, Vote, AlertTriangle } from 'lucide-
 import { getStatusColor, getStatusText, getStatusIcon, getUserName, getCredibilityBadge, getVotingTimeRemaining, formatTimeRemaining, isVotingWindowExpired } from '../utils.js';
 import LoadingSpinner from './LoadingSpinner.js';
 import { pageTransition, itemFadeIn, hoverScale } from '../ui/motionPresets.js';
+import { dataService } from '../services/dataService.js';
 
 function HomeView({ currentUser, bets, users, invitations, onLogout, onCreateBet, onViewInvitations, onViewProfile, onViewCredibility, onViewTokenHistory, onViewBet, isLoading = false }) {
   const [timeRemainingMap, setTimeRemainingMap] = React.useState({});

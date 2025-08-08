@@ -325,8 +325,9 @@ export const demoDataService = {
       // Save to localStorage immediately
       saveToLocalStorage(STORAGE_KEYS.USERS, demoUsers);
       
-      // Log the token change if there was a change
-      if (change !== 0) {
+      // 🎯 COMPLETELY NEW APPROACH: Don't log ANY bet-related token changes
+      // Only log manual updates and other non-bet operations
+      if (change !== 0 && !reason.startsWith('bet_')) {
         this.addTokenLog(userId, change, reason, betId, betTitle);
       }
       
@@ -719,12 +720,12 @@ export const demoDataService = {
         u.id === participantId ? { ...u, tokens: newTokens } : u
       );
 
-      // Log token refund
-      this.addTokenLog(participantId, refundAmount, 'bet_annulled_refund', betId, bet.title);
+      // 🆕 NEW: Log consolidated bet result (annulled)
+      this.logBetFinalResult(participantId, betId, bet.title, bet);
       
       console.log(`💰 Refunded ${refundAmount} tokens to ${user.username} (${cancellationFee} fee deducted)`);
       
-      return this.updateUserTokens(participantId, newTokens, 'bet_annulled_refund', betId, bet.title);
+      return this.updateUserTokens(participantId, newTokens, 'bet_stake', betId, bet.title); // Use bet_stake to avoid logging
     });
 
     // Apply credibility punishments for non-voting participants
@@ -870,6 +871,73 @@ export const demoDataService = {
     
     console.log('✅ Test bet updated with expired voting time');
     
-    return this.processBetAnnulment(betId);
-  }
-}; 
+          return this.processBetAnnulment(betId);
+    },
+
+    // 🆕 NEW: Function to log consolidated bet results
+    addBetResultLog(userId, betId, betTitle, finalDelta, reason = 'bet_result') {
+      // Calculate balance after this transaction
+      const user = demoUsers.find(u => u.id === userId);
+      const balanceAfter = user ? user.tokens : 0;
+      
+      const log = {
+        id: Date.now(),
+        userId,
+        change: finalDelta, // The final delta for this bet
+        reason: reason, // 'bet_won', 'bet_lost', 'bet_tie', 'bet_annulled'
+        betId,
+        betTitle,
+        timestamp: new Date().toISOString(),
+        balanceAfter: balanceAfter
+      };
+      
+      demoTokenLogs.unshift(log); // Add to beginning for newest first
+      
+      // Save to localStorage immediately
+      saveToLocalStorage(STORAGE_KEYS.TOKEN_LOGS, demoTokenLogs);
+      
+      console.log('✅ Bet result log added and saved:', log);
+      return Promise.resolve(log);
+    },
+
+    // 🆕 NEW: Function to calculate and log the actual net result of a bet
+    logBetFinalResult(userId, betId, betTitle, bet) {
+      const user = demoUsers.find(u => u.id === userId);
+      if (!user) return Promise.resolve(null);
+      
+      // Calculate the actual net change for this user in this bet
+      const stakeTokens = bet.stakeTokens;
+      const userBet = bet.participantBets[userId];
+      const winner = bet.winner;
+      
+      let netChange = 0;
+      let reason = 'bet_result';
+      
+      if (bet.status === 'annulled') {
+        // Annulled bet: user gets refund minus cancellation fee
+        const cancellationFee = Math.floor(stakeTokens * 0.20);
+        const refundAmount = stakeTokens - cancellationFee;
+        netChange = refundAmount;
+        reason = 'bet_annulled';
+      } else if (bet.winner === null || bet.winner === undefined) {
+        // Tie: no token changes (stakes were never deducted)
+        netChange = 0;
+        reason = 'bet_tie';
+      } else if (userBet === winner) {
+        // Winner: gets net profit (payout - stake)
+        const totalStakes = stakeTokens * bet.participants.length;
+        const platformFee = Math.floor(totalStakes * 0.03);
+        const availableForWinners = totalStakes - platformFee;
+        const winners = bet.participants.filter(pId => bet.participantBets[pId] === winner);
+        const payoutPerWinner = Math.floor(availableForWinners / winners.length);
+        netChange = payoutPerWinner - stakeTokens; // NET PROFIT (payout - stake)
+        reason = 'bet_won';
+      } else {
+        // Loser: lost their stake (net loss)
+        netChange = -stakeTokens;
+        reason = 'bet_lost';
+      }
+      
+      return this.addBetResultLog(userId, betId, betTitle, netChange, reason);
+    }
+  };  
