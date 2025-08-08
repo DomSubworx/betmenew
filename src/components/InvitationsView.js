@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Users, Check, X } from 'lucide-react';
 import { getUserName } from '../utils.js';
 
@@ -18,7 +19,7 @@ function InvitationsView({ currentUser, invitations, bets, users, onBack, onResp
 
   if (invitations.length === 0) {
     return (
-      <div className="max-w-md mx-auto bg-white min-h-screen">
+      <motion.div className="max-w-md mx-auto bg-white min-h-screen" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
         <div className="bg-secondary-500 text-white p-6">
           <div className="flex items-center space-x-4">
             <button 
@@ -34,17 +35,17 @@ function InvitationsView({ currentUser, invitations, bets, users, onBack, onResp
           </div>
         </div>
 
-        <div className="p-6 text-center">
+        <motion.div className="p-6 text-center" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
           <Users size={64} className="mx-auto mb-4 text-gray-300" />
           <h2 className="text-xl font-semibold text-gray-800 mb-2">No Invitations</h2>
           <p className="text-gray-600">You have no pending invitations.</p>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     );
   }
 
   return (
-    <div className="max-w-md mx-auto bg-white min-h-screen">
+    <motion.div className="max-w-md mx-auto bg-white min-h-screen" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="bg-secondary-500 text-white p-6">
         <div className="flex items-center space-x-4">
           <button 
@@ -61,14 +62,21 @@ function InvitationsView({ currentUser, invitations, bets, users, onBack, onResp
       </div>
 
       <div className="p-6 space-y-4">
-        {invitations.map(invitation => {
+        <AnimatePresence initial={false}>
+        {invitations.map((invitation, idx) => {
           const betDetails = getBetDetails(invitation.betId);
           const creatorName = getUserName(invitation.fromUserId, users);
           
           if (!betDetails) return null;
 
           return (
-            <div key={invitation.id} className="bg-white border rounded-xl p-4 shadow-sm">
+            <motion.div key={invitation.id} className="bg-white border rounded-xl p-4 shadow-sm"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2, delay: idx * 0.04 }}
+              whileHover={{ scale: 1.01, boxShadow: '0 8px 20px rgba(0,0,0,0.08)' }}
+            >
               <div className="flex justify-between items-start mb-3">
                 <div>
                   <h3 className="font-semibold text-gray-800">{betDetails.title}</h3>
@@ -131,26 +139,31 @@ function InvitationsView({ currentUser, invitations, bets, users, onBack, onResp
               </div>
 
               <div className="flex space-x-3">
-                <button
+                <motion.button
                   onClick={() => onRespond(invitation.id, 'accepted')}
                   className="flex-1 bg-green-500 text-white p-3 rounded-lg font-semibold hover:bg-green-600 transition-colors flex items-center justify-center space-x-2"
+                  whileTap={{ scale: 0.98 }}
+                  whileHover={{ scale: 1.02 }}
                 >
                   <Check size={20} />
                   <span>Accept</span>
-                </button>
-                <button
+                </motion.button>
+                <motion.button
                   onClick={() => onRespond(invitation.id, 'declined')}
                   className="flex-1 bg-red-500 text-white p-3 rounded-lg font-semibold hover:bg-red-600 transition-colors flex items-center justify-center space-x-2"
+                  whileTap={{ scale: 0.98 }}
+                  whileHover={{ scale: 1.02 }}
                 >
                   <X size={20} />
                   <span>Decline</span>
-                </button>
+                </motion.button>
               </div>
-            </div>
+            </motion.div>
           );
         })}
+        </AnimatePresence>
       </div>
-    </div>
+    </motion.div>
   );
 }
 

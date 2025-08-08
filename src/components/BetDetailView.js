@@ -180,14 +180,13 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
       const isWinner = winners.includes(participantId);
       
       if (isWinner) {
-        const totalPayout = bet.stakeTokens + payoutPerWinner;
         return {
           participantId,
           username: participant?.username || 'Unknown',
           result: 'won',
-          tokens: totalPayout,
+          tokens: payoutPerWinner,
           stakeReturned: bet.stakeTokens,
-          winnings: payoutPerWinner,
+          winnings: payoutPerWinner - bet.stakeTokens,
           betOn: participantBet
         };
       } else {
@@ -558,7 +557,7 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
         </div>
 
         {/* Invite Users */}
-        {bet.status !== 'voting' && availableUsers.length > 0 && (
+        {bet.status === 'active' && availableUsers.length > 0 && (
           <div className="bg-white border rounded-xl p-4 shadow-sm">
             <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
               <UserPlus size={20} className="mr-2" />
@@ -592,7 +591,7 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
         )}
 
         {/* Show message when no users available to invite */}
-        {bet.status !== 'voting' && availableUsers.length === 0 && (
+        {bet.status === 'active' && availableUsers.length === 0 && (
           <div className="bg-gray-50 border rounded-xl p-4 shadow-sm">
             <h3 className="font-semibold text-gray-800 mb-2 flex items-center">
               <UserPlus size={20} className="mr-2" />

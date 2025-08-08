@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Users, Trophy, MessageCircle } from 'lucide-react';
+import { Plus, Users, Trophy, MessageCircle, Vote } from 'lucide-react';
 import { getStatusColor, getStatusText, getStatusIcon, getUserName, getCredibilityBadge } from '../utils.js';
 import LoadingSpinner from './LoadingSpinner.js';
 
@@ -9,6 +9,13 @@ function HomeView({ currentUser, bets, users, invitations, onLogout, onCreateBet
   const pendingInvitations = invitations.filter(inv => 
     inv.toUserId === currentUser.id && inv.status === 'pending'
   ).length;
+
+  // Helper function to check if user needs to vote
+  const needsToVote = (bet) => {
+    if (bet.status !== 'voting') return false;
+    if (!bet.votes) return true;
+    return !bet.votes[currentUser.username];
+  };
 
   // Debug logging
   console.log('🏠 HomeView Debug:', {
@@ -158,7 +165,7 @@ function HomeView({ currentUser, bets, users, invitations, onLogout, onCreateBet
             <motion.div
               key={currentBet.id}
               onClick={() => onViewBet(currentBet)}
-              className="bg-white border rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+              className="bg-white border rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer relative"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ 
@@ -173,6 +180,22 @@ function HomeView({ currentUser, bets, users, invitations, onLogout, onCreateBet
               }}
               whileTap={{ scale: 0.98 }}
             >
+              {/* Voting notification indicator */}
+              {needsToVote(currentBet) && (
+                <motion.div
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1.5 shadow-lg z-10"
+                  initial={{ scale: 0, rotate: -180 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ 
+                    type: "spring",
+                    stiffness: 500,
+                    damping: 15
+                  }}
+                  whileHover={{ scale: 1.1 }}
+                >
+                  <Vote size={12} />
+                </motion.div>
+              )}
               <div className="flex justify-between items-start mb-2">
                 <h3 className="font-semibold text-gray-800">{currentBet.title}</h3>
                 <span className={`px-2 py-1 rounded-full text-xs font-medium flex items-center space-x-1 ${getStatusColor(currentBet.status)}`}>

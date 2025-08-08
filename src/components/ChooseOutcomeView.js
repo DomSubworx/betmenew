@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion } from 'framer-motion';
 import { ArrowLeft, Trophy } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext.js';
 
@@ -15,8 +16,8 @@ function ChooseOutcomeView({ bet, currentUser, invitation, onOutcomeChosen, onBa
   };
 
   return (
-    <div className="max-w-md mx-auto bg-white min-h-screen">
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6">
+    <motion.div className="max-w-md mx-auto bg-white min-h-screen" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      <div className="bg-dark-cyan text-white p-6">
         <div className="flex items-center space-x-4">
           <button 
             onClick={onBack}
@@ -33,7 +34,7 @@ function ChooseOutcomeView({ bet, currentUser, invitation, onOutcomeChosen, onBa
 
       <div className="p-6 space-y-6">
         {/* Bet Info */}
-        <div className="bg-blue-50 rounded-xl p-4">
+        <motion.div className="bg-blue-50 rounded-xl p-4" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
           <h2 className="text-lg font-semibold text-blue-800 mb-2">{bet.title}</h2>
           {bet.description && (
             <p className="text-blue-700 text-sm mb-3">{bet.description}</p>
@@ -42,7 +43,7 @@ function ChooseOutcomeView({ bet, currentUser, invitation, onOutcomeChosen, onBa
              <p className="text-blue-600">Token Stake:</p>
              <p className="font-medium text-blue-800">💰 {bet.stakeTokens}</p>
            </div>
-        </div>
+        </motion.div>
 
         {/* Outcome Selection */}
         <div>
@@ -53,7 +54,7 @@ function ChooseOutcomeView({ bet, currentUser, invitation, onOutcomeChosen, onBa
           
           <div className="space-y-3">
             {bet.outcomes.map((outcome, index) => (
-              <button
+              <motion.button
                 key={index}
                 onClick={() => setSelectedOutcome(outcome)}
                 className={`w-full p-4 rounded-xl border-2 transition-colors text-left ${
@@ -61,36 +62,38 @@ function ChooseOutcomeView({ bet, currentUser, invitation, onOutcomeChosen, onBa
                     ? 'border-blue-500 bg-blue-50 text-blue-700'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
+                whileTap={{ scale: 0.98 }}
               >
                 <div className="font-medium">{outcome}</div>
                 <div className="text-sm text-gray-500 mt-1">
                   {selectedOutcome === outcome ? '✓ Selected' : 'Click to select'}
                 </div>
-              </button>
+              </motion.button>
             ))}
           </div>
         </div>
 
         {/* Token Info */}
-        <div className="bg-yellow-50 rounded-xl p-4">
+        <motion.div className="bg-yellow-50 rounded-xl p-4" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
           <h4 className="font-semibold text-yellow-800 mb-2">Token Info</h4>
           <div className="text-sm text-yellow-700">
             <p>• Your current balance: <span className="font-medium">{currentUser.tokens} 🪙</span></p>
             <p>• After participation: <span className="font-medium">{currentUser.tokens - bet.stakeTokens} 🪙</span></p>
             <p>• Win with correct bet: <span className="font-medium">{Math.floor((bet.stakeTokens * bet.participants.length) * 0.97)} 🪙</span></p>
           </div>
-        </div>
+        </motion.div>
 
         {/* Submit Button */}
-        <button
+        <motion.button
           onClick={handleSubmit}
           disabled={!selectedOutcome}
           className="w-full bg-blue-500 text-white p-4 rounded-xl font-semibold hover:bg-blue-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+          whileTap={{ scale: 0.98 }}
         >
           {selectedOutcome ? `Bet on "${selectedOutcome}"` : 'Select outcome'}
-        </button>
+        </motion.button>
       </div>
-    </div>
+    </motion.div>
   );
 }
 

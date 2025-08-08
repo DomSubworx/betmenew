@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, TrendingUp, TrendingDown, Clock } from 'lucide-react';
 
 function TokenLogView({ currentUser, tokenLogs, users, onBack }) {
@@ -57,7 +58,7 @@ function TokenLogView({ currentUser, tokenLogs, users, onBack }) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <motion.div className="min-h-screen bg-gray-50" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       {/* Header */}
       <div className="bg-primary-500 text-white p-4 max-w-md mx-auto">
         <div className="flex items-center justify-between">
@@ -86,18 +87,23 @@ function TokenLogView({ currentUser, tokenLogs, users, onBack }) {
       {/* Token History List */}
       <div className="p-4 pb-20 max-w-md mx-auto">
         {tokenLogs.length === 0 ? (
-          <div className="text-center py-8">
+          <motion.div className="text-center py-8" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
             <div className="text-gray-500 text-lg mb-2">No token transactions yet</div>
             <div className="text-gray-400 text-sm">
               Your token history will appear here when you participate in bets
             </div>
-          </div>
+          </motion.div>
         ) : (
           <div className="space-y-3">
-            {tokenLogs.map((log) => (
-              <div
+            <AnimatePresence initial={false}>
+            {tokenLogs.map((log, idx) => (
+              <motion.div
                 key={log.id}
                 className="bg-white rounded-lg p-4 shadow-sm border border-gray-100"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2, delay: idx * 0.03 }}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
@@ -127,12 +133,13 @@ function TokenLogView({ currentUser, tokenLogs, users, onBack }) {
                     )}
                   </div>
                 </div>
-              </div>
+              </motion.div>
             ))}
+            </AnimatePresence>
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }
 

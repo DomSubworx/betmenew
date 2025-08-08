@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Camera, Wallet, Share2, Users, User, Copy, Trash2, Target } from 'lucide-react';
 import { getFriends } from '../utils.js';
 
@@ -13,7 +14,7 @@ function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBa
   ).length : 0;
 
   return (
-    <div className="max-w-md mx-auto bg-white min-h-screen">
+    <motion.div className="max-w-md mx-auto bg-white min-h-screen" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       {/* Header */}
       <div className="bg-primary-500 text-white p-6">
         <div className="flex items-center space-x-4">
@@ -32,7 +33,7 @@ function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBa
 
       <div className="p-6 pb-20 space-y-6">
         {/* Profile Photo Section */}
-        <div className="bg-white border rounded-xl p-6 shadow-sm">
+        <motion.div className="bg-white border rounded-xl p-6 shadow-sm" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
                       <h2 className="text-lg font-semibold mb-4 flex items-center">
               <Camera size={20} className="mr-2" />
               Profile Photo
@@ -66,29 +67,31 @@ function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBa
                 className="hidden"
                 id="profile-photo-input"
               />
-              <label
+              <motion.label
                 htmlFor="profile-photo-input"
                 className="bg-primary-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-600 transition-colors cursor-pointer inline-block"
+                whileTap={{ scale: 0.98 }}
               >
                 Upload Photo
-              </label>
+              </motion.label>
                               <p className="text-sm text-gray-500 mt-1">
                   {currentProfilePhoto ? 'Update photo' : 'No photo yet'}
                 </p>
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Token Wallet Section */}
-        <div className="bg-white border rounded-xl p-6 shadow-sm">
+        <motion.div className="bg-white border rounded-xl p-6 shadow-sm" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: 0.05 }}>
           <h2 className="text-lg font-semibold mb-4 flex items-center">
             <Wallet size={20} className="mr-2" />
             Token Wallet
           </h2>
           
-          <button
+          <motion.button
             onClick={onViewTokenHistory}
             className="w-full bg-accent-500 rounded-lg p-4 text-white hover:bg-accent-600 transition-colors cursor-pointer"
+            whileTap={{ scale: 0.98 }}
           >
             <div className="flex items-center justify-between">
               <div>
@@ -105,7 +108,7 @@ function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBa
             <div className="mt-2 text-center">
               <p className="text-xs opacity-75">Click to view token history</p>
             </div>
-          </button>
+          </motion.button>
           
           <div className="mt-4 grid grid-cols-2 gap-3">
             <div className="bg-gray-50 rounded-lg p-3 text-center">
@@ -121,18 +124,19 @@ function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBa
               </p>
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Credibility Stats Section */}
-        <div className="bg-white border rounded-xl p-6 shadow-sm">
+        <motion.div className="bg-white border rounded-xl p-6 shadow-sm" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: 0.1 }}>
           <h2 className="text-lg font-semibold mb-4 flex items-center">
             <Target size={20} className="mr-2" />
             Credibility Stats
           </h2>
           
-          <button
+          <motion.button
             onClick={onViewCredibility}
             className="w-full bg-secondary-500 rounded-lg p-4 text-white hover:bg-secondary-600 transition-colors cursor-pointer"
+            whileTap={{ scale: 0.98 }}
           >
             <div className="flex items-center justify-between">
               <div>
@@ -151,7 +155,7 @@ function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBa
             <div className="mt-2 text-center">
               <p className="text-xs opacity-75">Click to view credibility history</p>
             </div>
-          </button>
+          </motion.button>
           
           <div className="mt-4 grid grid-cols-2 gap-3">
             <div className="bg-gray-50 rounded-lg p-3 text-center">
@@ -174,10 +178,10 @@ function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBa
               </p>
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Invite Link Section */}
-        <div className="bg-white border rounded-xl p-6 shadow-sm">
+        <motion.div className="bg-white border rounded-xl p-6 shadow-sm" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: 0.15 }}>
           <h2 className="text-lg font-semibold mb-4 flex items-center">
             <Share2 size={20} className="mr-2" />
                           Invite Friends
@@ -194,47 +198,55 @@ function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBa
                     readOnly
                     className="flex-1 p-2 border rounded text-sm bg-white"
                   />
-                  <button
+                  <motion.button
                     onClick={() => onCopyInvite(currentInviteLink)}
                     className="bg-primary-500 text-white p-2 rounded hover:bg-primary-600 transition-colors"
+                    whileTap={{ scale: 0.98 }}
                   >
                     <Copy size={16} />
-                  </button>
+                  </motion.button>
                 </div>
               </div>
             ) : (
-              <button
+              <motion.button
                 onClick={() => onGenerateInvite(currentUser.id)}
                 className="w-full bg-primary-500 text-white p-3 rounded-lg font-semibold hover:bg-primary-600 transition-colors flex items-center justify-center space-x-2"
+                whileTap={{ scale: 0.98 }}
               >
                 <Share2 size={20} />
                 <span>Create Invitation Link</span>
-              </button>
+              </motion.button>
             )}
             
             <p className="text-sm text-gray-500">
               Share this link with your friends to add them directly to your friends list.
             </p>
           </div>
-        </div>
+        </motion.div>
 
         {/* Friends List Section */}
-        <div className="bg-white border rounded-xl p-6 shadow-sm">
+        <motion.div className="bg-white border rounded-xl p-6 shadow-sm" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: 0.2 }}>
           <h2 className="text-lg font-semibold mb-4 flex items-center">
             <Users size={20} className="mr-2" />
             My Friends ({friends.length})
           </h2>
           
           {friends.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <motion.div className="text-center py-8 text-gray-500" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <Users size={48} className="mx-auto mb-4 opacity-50" />
               <p>No friends yet</p>
               <p className="text-sm">Create an invitation link to add friends!</p>
-            </div>
+            </motion.div>
           ) : (
             <div className="space-y-3">
-              {friends.map(friend => (
-                <div key={friend.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <AnimatePresence initial={false}>
+              {friends.map((friend, idx) => (
+                <motion.div key={friend.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.18, delay: idx * 0.03 }}
+                >
                   <div className="flex items-center space-x-3">
                     {userProfiles[friend.id] ? (
                       <img 
@@ -253,20 +265,22 @@ function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBa
                     </div>
                   </div>
                   
-                  <button
+                  <motion.button
                     onClick={() => onRemoveFriend(currentUser.id, friend.id)}
                     className="text-red-500 hover:text-red-700 transition-colors"
                     title="Remove friend"
+                    whileTap={{ scale: 0.96 }}
                   >
                     <Trash2 size={16} />
-                  </button>
-                </div>
+                  </motion.button>
+                </motion.div>
               ))}
+              </AnimatePresence>
             </div>
           )}
-        </div>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 

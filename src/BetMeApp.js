@@ -644,15 +644,13 @@ export default function BetMeApp() {
     }
 
     // 🎯 FIXED: Calculate available for winners correctly
-    // Available = losers' stakes - platform fee
-    const losersCount = losers.length;
-    const losersStakes = losersCount * bet.stakeTokens;
-    const availableForWinners = losersStakes - platformFee;
+    // Available = total pot - platform fee
+    const totalPot = totalStakes;
+    const availableForWinners = totalPot - platformFee;
     
     console.log('💰 Token redistribution calculation:', {
       totalStakes,
-      losersCount,
-      losersStakes,
+      totalPot,
       platformFee,
       availableForWinners,
       participants: bet.participants.length
@@ -683,16 +681,15 @@ export default function BetMeApp() {
     console.log('💰 Payout per winner:', payoutPerWinner);
 
     // 🎯 FIXED: Process winners correctly
-    // Winners get their stake back + share of the pot
+    // Winners get their share of the total pot
     for (const winnerId of winners) {
       const winner = users.find(u => u.id === winnerId);
       if (winner) {
-        // 🎯 CRITICAL FIX: Winners get their stake back + share of losers' stakes
-        // Their stake was already deducted when joining, so they get it back + winnings
-        const totalPayout = bet.stakeTokens + payoutPerWinner;
-        const newTokens = winner.tokens + totalPayout;
+        // 🎯 CRITICAL FIX: payoutPerWinner is the total amount each winner should get
+        // (includes their stake + their share of the pot)
+        const newTokens = winner.tokens + payoutPerWinner;
         await dataService.updateUserTokens(winnerId, newTokens, 'bet_won', bet.id, bet.title);
-        console.log(`💰 Winner ${winner.username}: +${totalPayout} tokens (stake returned: ${bet.stakeTokens} + winnings: ${payoutPerWinner}, new total: ${newTokens})`);
+        console.log(`💰 Winner ${winner.username}: +${payoutPerWinner} tokens (total payout, new total: ${newTokens})`);
       }
     }
 
@@ -709,7 +706,7 @@ export default function BetMeApp() {
     console.log(`💰 Platform fee collected: ${platformFee} tokens`);
 
     // 🎯 MATHEMATICAL VERIFICATION: Ensure token conservation
-    const totalPayouts = winners.length * (bet.stakeTokens + payoutPerWinner);
+    const totalPayouts = winners.length * payoutPerWinner;
     const totalSystemChange = totalPayouts + platformFee;
     
     // 🎯 SIMPLE TEST: Verify the math

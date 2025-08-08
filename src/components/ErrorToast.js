@@ -1,18 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, AlertCircle, CheckCircle, Info } from 'lucide-react';
 
 const ErrorToast = ({ message, type = 'error', duration = 5000, onClose }) => {
   const [isVisible, setIsVisible] = useState(true);
+  const timersRef = useRef([]);
+
+  const clearAllTimers = () => {
+    timersRef.current.forEach(timer => clearTimeout(timer));
+    timersRef.current = [];
+  };
 
   useEffect(() => {
     if (duration > 0) {
       const timer = setTimeout(() => {
         setIsVisible(false);
-        setTimeout(() => onClose(), 300); // Wait for fade out animation
+        const closeTimer = setTimeout(() => onClose(), 300); // Wait for fade out animation
+        timersRef.current.push(closeTimer);
       }, duration);
-      return () => clearTimeout(timer);
+      timersRef.current.push(timer);
     }
+
+    return clearAllTimers;
   }, [duration, onClose]);
+
+  const handleClose = () => {
+    setIsVisible(false);
+    const closeTimer = setTimeout(() => onClose(), 300);
+    timersRef.current.push(closeTimer);
+  };
 
   const getIcon = () => {
     switch (type) {
@@ -50,10 +65,7 @@ const ErrorToast = ({ message, type = 'error', duration = 5000, onClose }) => {
           <p className="text-sm font-medium">{message}</p>
         </div>
         <button
-          onClick={() => {
-            setIsVisible(false);
-            setTimeout(() => onClose(), 300);
-          }}
+          onClick={handleClose}
           className="text-gray-400 hover:text-gray-600 transition-colors"
         >
           <X size={16} />
