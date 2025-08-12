@@ -551,16 +551,49 @@ export const demoDataService = {
   // Friend operations
   addFriend(userId, friendId) {
     const userIndex = demoUsers.findIndex(u => u.id === userId);
-    if (userIndex !== -1 && !demoUsers[userIndex].friends.includes(friendId)) {
+    if (userIndex !== -1) {
+      // 🎯 PRODUCTION READY: Ensure friends array exists
+      if (!demoUsers[userIndex].friends) {
+        demoUsers[userIndex].friends = [];
+      }
+      
+      // Check if already friends to prevent duplicates
+      if (demoUsers[userIndex].friends.includes(friendId)) {
+        console.log('ℹ️ Users already friends:', { userId, friendId });
+        return Promise.resolve(true); // Return true since they're already friends
+      }
+      
+      // Add friend
       demoUsers[userIndex].friends.push(friendId);
       
       // Save to localStorage immediately
       saveToLocalStorage(STORAGE_KEYS.USERS, demoUsers);
       
-      console.log('✅ Friend added and saved:', { userId, friendId });
+      console.log('✅ Friend added and saved:', { userId, friendId, newFriendsList: demoUsers[userIndex].friends });
       return Promise.resolve(true);
     }
     return Promise.resolve(false);
+  },
+
+  // 🎯 PRODUCTION READY: Clear all friends for a user
+  clearAllFriends(userId) {
+    const userIndex = demoUsers.findIndex(u => u.id === userId);
+    if (userIndex !== -1) {
+      demoUsers[userIndex].friends = [];
+      
+      // Save to localStorage immediately
+      saveToLocalStorage(STORAGE_KEYS.USERS, demoUsers);
+      
+      console.log('🧹 Cleared all friends for user:', userId);
+      return Promise.resolve(true);
+    }
+    return Promise.resolve(false);
+  },
+
+  // 🎯 PRODUCTION READY: Get user's friends list
+  getUserFriends(userId) {
+    const user = demoUsers.find(u => u.id === userId);
+    return Promise.resolve(user?.friends || []);
   },
 
   removeFriend(userId, friendId) {
@@ -579,7 +612,8 @@ export const demoDataService = {
 
   // Invite link operations
   generateInviteLink(userId) {
-    const inviteLink = `betme://invite/${userId}/${Date.now()}`;
+    // 🆕 NEW: Use web URL with invite parameter for better compatibility
+    const inviteLink = `${window.location.origin}${window.location.pathname}?invite=${userId}`;
     demoInviteLinks[userId] = inviteLink;
     return Promise.resolve(inviteLink);
   },
@@ -587,6 +621,11 @@ export const demoDataService = {
   // Reset demo data
   resetDemoData() {
     console.log('🔄 Resetting demo data...');
+    
+    // 🎯 PRODUCTION READY: Clear all localStorage data to ensure clean state
+    localStorage.clear();
+    
+    // Reset demo users with full friendships
     demoUsers = [
       { id: 1, username: 'Maxim', email: 'maxim@example.com', friends: [2, 3, 4, 5, 6, 7, 8, 9], tokens: 1000, credibility: 100 },
       { id: 2, username: 'Moritz', email: 'moritz@example.com', friends: [1, 3, 4, 5, 6, 7, 8, 9], tokens: 1000, credibility: 100 },
@@ -599,6 +638,7 @@ export const demoDataService = {
       { id: 9, username: 'Vess', email: 'vess@example.com', friends: [1, 2, 3, 4, 5, 6, 7, 8], tokens: 1000, credibility: 100 }
     ];
     
+    // Reset other demo data
     demoBets = [
       {
         id: 1,

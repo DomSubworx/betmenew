@@ -48,14 +48,46 @@ export default function BetMeApp() {
   // ============================================================================
 
   /**
+   * Load initial application data (users, bets, profiles) - no user-specific data
+   * This is used for app startup and doesn't depend on currentUser
+   */
+  const loadInitialData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      console.log('🔄 Loading initial application data...');
+      
+      // Load only non-user-specific data
+      const [usersData, betsData, userProfilesData] = await Promise.all([
+        dataService.getUsers(),
+        dataService.getBets(),
+        dataService.getUserProfiles()
+      ]);
+      
+      // Update state
+      setUsers(usersData);
+      setBets(betsData);
+      setUserProfiles(userProfilesData);
+      
+      console.log('✅ Initial data loaded successfully:', {
+        users: usersData.length,
+        bets: betsData.length,
+        profiles: Object.keys(userProfilesData).length
+      });
+    } catch (error) {
+      console.error('❌ Error loading initial data:', error);
+      showError('Failed to load initial data. Please refresh the page.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [showError]);
+
+  /**
    * Load all application data from the data service
    * This is the single source of truth for data loading
    */
   const loadAllData = useCallback(async () => {
-    setIsLoading(true);
     try {
-      // 🎯 FIXED: Don't reinitialize data service - only load data
-      // dataService.initialize(); // Removed - causes data reset
+      console.log('🔄 Loading all application data...');
       
       // Load all data in parallel for efficiency
       const [usersData, betsData, userProfilesData, credibilityLogsData, tokenLogsData] = await Promise.all([
@@ -73,6 +105,18 @@ export default function BetMeApp() {
       setCredibilityLogs(credibilityLogsData);
       setTokenLogs(tokenLogsData);
       
+      // 🎯 FIX: Sync currentUser tokens after data load (with safety check)
+      if (currentUser && usersData.length > 0) {
+        const updatedUser = usersData.find(u => u.id === currentUser.id);
+        if (updatedUser && updatedUser.tokens !== currentUser.tokens) {
+          console.log('🔄 Syncing currentUser tokens after data load:', { 
+            old: currentUser.tokens, 
+            new: updatedUser.tokens 
+          });
+          setCurrentUser(prev => ({ ...prev, tokens: updatedUser.tokens }));
+        }
+      }
+      
       console.log('✅ All data loaded successfully:', {
         users: usersData.length,
         bets: betsData.length,
@@ -82,8 +126,6 @@ export default function BetMeApp() {
     } catch (error) {
       console.error('❌ Error loading data:', error);
       showError('Failed to load data. Please refresh the page.');
-    } finally {
-      setIsLoading(false);
     }
   }, [currentUser, showError]);
 
@@ -107,11 +149,23 @@ export default function BetMeApp() {
       
       setInvitations(pendingInvitations);
       console.log(`✅ Loaded ${pendingInvitations.length} pending invitations for user ${userId}`);
+      
+      // 🎯 FIX: Double-check token sync after loading invitations (with safety check)
+      if (currentUser && currentUser.id === userId && users.length > 0) {
+        const updatedUser = users.find(u => u.id === currentUser.id);
+        if (updatedUser && updatedUser.tokens !== currentUser.tokens) {
+          console.log('🔄 Final token sync after invitations load:', { 
+            old: currentUser.tokens, 
+            new: updatedUser.tokens 
+          });
+          setCurrentUser(prev => ({ ...prev, tokens: updatedUser.tokens }));
+        }
+      }
     } catch (error) {
       console.error('❌ Error loading invitations:', error);
       showError('Failed to load invitations.');
     }
-  }, [showError]);
+  }, [showError, currentUser, users]);
 
   /**
    * Refresh all data - used after major operations
@@ -152,8 +206,8 @@ export default function BetMeApp() {
       }
     };
 
-    // Check immediately on mount
-    checkExpiredBets();
+    // Check immediately on mount (but don't block UI)
+    setTimeout(checkExpiredBets, 1000);
 
     // Set up interval to check every 5 minutes
     const interval = setInterval(checkExpiredBets, 5 * 60 * 1000);
@@ -169,8 +223,8 @@ export default function BetMeApp() {
   useEffect(() => {
     // 🎯 FIXED: Initialize data service only once at startup
     dataService.initialize();
-    loadAllData();
-  }, [loadAllData]);
+    loadInitialData();
+  }, [loadInitialData]);
 
   // Set up real-time subscriptions (only for Supabase mode)
   useEffect(() => {
@@ -214,14 +268,28 @@ export default function BetMeApp() {
     };
   }, [currentUser]);
 
-  // 🎯 FIXED: Refresh data when user changes
+  // 🎯 FIXED: Refresh data when user changes (simplified to prevent loops)
   useEffect(() => {
     if (currentUser) {
-      console.log(`🔄 User changed to ${currentUser.username}, refreshing data...`);
-      loadAllData();
-      loadUserInvitations(currentUser.id);
+      console.log(`🔄 User changed to ${currentUser.username}, will refresh data in background...`);
+      // Don't call loadAllData here to prevent circular dependency
+      // Data will be loaded in the background after login
     }
-  }, [currentUser, loadAllData, loadUserInvitations]);
+  }, [currentUser]);
+
+  // 🎯 CRITICAL FIX: Auto-sync currentUser tokens when global users state changes
+  useEffect(() => {
+    if (currentUser && users.length > 0) {
+      const updatedUser = users.find(u => u.id === currentUser.id);
+      if (updatedUser && updatedUser.tokens !== currentUser.tokens) {
+        console.log('🔄 AUTO-SYNC: Global users state changed, updating currentUser tokens:', { 
+          oldTokens: currentUser.tokens, 
+          newTokens: updatedUser.tokens 
+        });
+        setCurrentUser(prev => ({ ...prev, tokens: updatedUser.tokens }));
+      }
+    }
+  }, [users, currentUser]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -251,6 +319,22 @@ export default function BetMeApp() {
     }
   }, [bets, selectedBet, currentView]);
 
+  // 🆕 NEW: Handle profile link invitations on app startup
+  useEffect(() => {
+    if (!currentUser) return;
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const inviteUserId = urlParams.get('invite');
+    
+    if (inviteUserId) {
+      console.log('🔗 Profile invitation link detected:', inviteUserId);
+      handleProfileInvitation(inviteUserId);
+      
+      // Clean up URL parameters
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [currentUser]);
+
   // ============================================================================
   // USER MANAGEMENT
   // ============================================================================
@@ -266,14 +350,26 @@ export default function BetMeApp() {
     }
 
     try {
+      console.log(`🔐 Logging in user: ${user.username}`);
+      
+      // Set user and view immediately for responsive UI
       setCurrentUser(user);
       setCurrentView('home');
       
-      // 🎯 FIXED: Refresh all data when switching users
-      await loadAllData();
+      // Load data in background without blocking login
+      console.log('🔄 Loading user data in background...');
       
-      // Load user-specific data
-      await loadUserInvitations(user.id);
+      // Use a timeout to prevent blocking
+      setTimeout(async () => {
+        try {
+          await loadAllData();
+          await loadUserInvitations(user.id);
+          console.log(`✅ Background data load complete for ${user.username}`);
+        } catch (error) {
+          console.error('❌ Background data load error:', error);
+          // Don't show error to user - data will load on next interaction
+        }
+      }, 100);
       
       console.log(`✅ User ${user.username} logged in successfully`);
     } catch (error) {
@@ -435,9 +531,9 @@ export default function BetMeApp() {
       // 🎯 FIXED: Update local state immediately for UI responsiveness
       setBets(prev => [newBet, ...prev]);
       
-      // 🎯 FIXED: Update current user tokens immediately
-      const newUserTokens = currentUser.tokens - stakeTokens;
-      setCurrentUser(prev => ({ ...prev, tokens: newUserTokens }));
+      // 🎯 FIXED: DON'T deduct tokens when creating bet - they will be handled at completion
+      // Keep current user tokens unchanged for now
+      setCurrentUser(prev => ({ ...prev, tokens: prev.tokens }));
 
       // 🎯 FIXED: Create invitations in background (don't block UI)
       const friendsToInvite = betData.participants.filter(id => id !== currentUser.id);
@@ -474,13 +570,9 @@ export default function BetMeApp() {
         showError('Bet created but some invitations failed. Please check.');
       });
 
-      // 🎯 FIXED: Deduct tokens in background
-      dataService.updateUserTokens(currentUser.id, newUserTokens).then(() => {
-        console.log('✅ Tokens deducted successfully');
-      }).catch(error => {
-        console.error('❌ Error deducting tokens:', error);
-        showError('Bet created but token deduction failed. Please check your balance.');
-      });
+      // 🎯 FIXED: DON'T deduct tokens when creating bet - they will be handled at completion
+      // No token movement should be logged for bet creation
+      console.log('✅ Bet created - tokens will be handled at completion');
       
       // 🎯 VALIDATION: Ensure token conservation after bet creation
       if (!validateTokenConservation('bet creation')) {
@@ -498,22 +590,66 @@ export default function BetMeApp() {
    */
   const updateUserTokens = useCallback(async (userId, newTokens, reason = 'manual_update', betId = null, betTitle = null) => {
     try {
+      console.log('🔄 updateUserTokens called:', { userId, newTokens, reason, betId, betTitle });
+      
       const success = await dataService.updateUserTokens(userId, newTokens, reason, betId, betTitle);
       if (success) {
-        // Refresh user data to get updated state
-        await refreshAllData();
+        console.log('✅ dataService.updateUserTokens successful');
         
-        // Update current user if needed
+        // 🎯 CRITICAL FIX: Update currentUser state IMMEDIATELY
         if (currentUser?.id === userId) {
+          console.log('🔄 IMMEDIATE currentUser token update:', { 
+            userId, 
+            oldTokens: currentUser.tokens, 
+            newTokens 
+          });
           setCurrentUser(prev => ({ ...prev, tokens: newTokens }));
         }
+        
+        // Also update the global users state immediately
+        setUsers(prev => {
+          const updated = prev.map(user => 
+            user.id === userId 
+              ? { ...user, tokens: newTokens }
+              : user
+          );
+          console.log('🔄 Global users state updated:', updated.find(u => u.id === userId));
+          return updated;
+        });
+        
+        // Refresh other data in background (don't block token update)
+        setTimeout(async () => {
+          try {
+            await refreshAllData();
+          } catch (error) {
+            console.error('❌ Background refresh error:', error);
+          }
+        }, 100);
+      } else {
+        console.error('❌ dataService.updateUserTokens failed');
       }
       return success;
     } catch (error) {
       console.error('❌ Error updating user tokens:', error);
       return false;
     }
-  }, [refreshAllData, currentUser]);
+  }, [currentUser]);
+
+  /**
+   * 🎯 FIX: Ensure currentUser tokens are always in sync with global user data
+   */
+  const syncCurrentUserTokens = useCallback(async () => {
+    if (!currentUser || users.length === 0) return;
+    
+    const updatedUser = users.find(u => u.id === currentUser.id);
+    if (updatedUser && updatedUser.tokens !== currentUser.tokens) {
+      console.log('🔄 Syncing currentUser tokens:', { 
+        old: currentUser.tokens, 
+        new: updatedUser.tokens 
+      });
+      setCurrentUser(prev => ({ ...prev, tokens: updatedUser.tokens }));
+    }
+  }, [currentUser, users]);
 
   // ============================================================================
   // INVITATION MANAGEMENT
@@ -664,16 +800,17 @@ export default function BetMeApp() {
   const processTokenRedistribution = useCallback(async (bet) => {
     console.log('💰 Processing token redistribution for bet:', bet.id);
     
-    if (bet.status !== BET_STATUS.COMPLETED || !bet.winner) {
-      console.error('❌ Bet not ready for token redistribution:', bet.id);
-      return;
-    }
+    try {
+      if (bet.status !== BET_STATUS.COMPLETED || !bet.winner) {
+        console.error('❌ Bet not ready for token redistribution:', bet.id);
+        throw new Error('Bet not ready for token redistribution');
+      }
 
-    // 🎯 VALIDATION: Ensure bet integrity before processing payments
-    if (!validateBetIntegrity(bet)) {
-      console.error('❌ Bet integrity validation failed - aborting token redistribution');
-      return;
-    }
+      // 🎯 VALIDATION: Ensure bet integrity before processing payments
+      if (!validateBetIntegrity(bet)) {
+        console.error('❌ Bet integrity validation failed - aborting token redistribution');
+        throw new Error('Bet integrity validation failed');
+      }
 
     // 🎯 MATHEMATICAL VALIDATION: Ensure pot calculation is correct
     const totalStakes = bet.stakeTokens * bet.participants.length;
@@ -704,6 +841,18 @@ export default function BetMeApp() {
       availableForWinners,
       participants: bet.participants.length
     });
+    
+    // 🎯 DEBUG: Show expected token distribution
+    console.log('🎯 EXPECTED TOKEN DISTRIBUTION:');
+    console.log(`  - Total pot: ${totalStakes} tokens`);
+    console.log(`  - Platform fee: ${platformFee} tokens`);
+    console.log(`  - Available for winners: ${availableForWinners} tokens`);
+    console.log(`  - Winners: ${winners.length} (${winners.join(', ')})`);
+    console.log(`  - Losers: ${losers.length} (${losers.join(', ')})`);
+    console.log(`  - Stake per person: ${bet.stakeTokens} tokens`);
+    console.log(`  - Payout per winner: ${payoutPerWinner} tokens`);
+    console.log(`  - Net gain per winner: ${payoutPerWinner - bet.stakeTokens} tokens`);
+    console.log(`  - Net loss per loser: -${bet.stakeTokens} tokens`);
 
     console.log('💰 Winners and losers:', { winners, losers });
 
@@ -713,12 +862,13 @@ export default function BetMeApp() {
       for (const participantId of bet.participants) {
         const participant = users.find(u => u.id === participantId);
         if (participant) {
-                  // No token changes for tie - stakes were never deducted
-        // Just log the consolidated result
-        
-        // 🆕 NEW: Log consolidated bet result (tie)
-        await dataService.logBetFinalResult(participantId, bet.id, bet.title, bet);
-        console.log(`💰 Participant ${participant.username}: tie result logged`);
+          // No token changes for tie - stakes were never deducted
+          // Just log the consolidated result
+          
+          // 🆕 NEW: Log consolidated bet result (tie)
+          // No token changes for tie - stakes were never deducted
+          await dataService.addBetResultLog(participantId, bet.id, bet.title, 0, 'bet_tie');
+          console.log(`💰 Participant ${participant.username}: tie result logged (0 tokens)`);
         }
       }
       console.log(`💰 Platform fee collected: ${platformFee} tokens (from tie scenario)`);
@@ -732,35 +882,74 @@ export default function BetMeApp() {
     console.log('💰 Payout per winner:', payoutPerWinner);
 
     // 🎯 FIXED: Process winners correctly
-    // Winners get their share of the total pot
+    // Winners get their stake back + their share of the pot
     for (const winnerId of winners) {
       const winner = users.find(u => u.id === winnerId);
       if (winner) {
-        // 🎯 CRITICAL FIX: payoutPerWinner is the total amount each winner should get
-        // (includes their stake + their share of the pot)
-        const newTokens = winner.tokens + payoutPerWinner;
-        await dataService.updateUserTokens(winnerId, newTokens, 'bet_stake', bet.id, bet.title); // Use bet_stake to avoid logging
+        // 🎯 CRITICAL FIX: Winners get their stake back + winnings
+        // They never lost their stake, so they just get the winnings
+        const netGain = payoutPerWinner - bet.stakeTokens; // winnings minus their stake
+        const newTokens = winner.tokens + netGain;
         
-        // 🆕 NEW: Log consolidated bet result (win)
-        await dataService.logBetFinalResult(winnerId, bet.id, bet.title, bet);
-        console.log(`💰 Winner ${winner.username}: win result logged`);
+        console.log(`💰 Winner ${winner.username}: stake=${bet.stakeTokens}, winnings=${payoutPerWinner}, netGain=${netGain}`);
+        
+        await dataService.updateUserTokens(winnerId, newTokens, 'bet_won', bet.id, bet.title);
+        
+        // 🆕 NEW: Log consolidated bet result (win) - show the NET gain
+        // Use the netGain we already calculated instead of recalculating
+        await dataService.addBetResultLog(winnerId, bet.id, bet.title, netGain, 'bet_won');
+        console.log(`💰 Winner ${winner.username}: win result logged (+${netGain} tokens)`);
+        
+        // 🎯 CRITICAL FIX: Update currentUser state if this is the current user
+        if (winnerId === currentUser?.id) {
+          console.log('🔄 WINNER: Updating currentUser tokens immediately:', { 
+            oldTokens: currentUser.tokens, 
+            newTokens 
+          });
+          setCurrentUser(prev => ({ ...prev, tokens: newTokens }));
+          
+          // Also update global users state immediately
+          setUsers(prev => prev.map(user => 
+            user.id === winnerId 
+              ? { ...user, tokens: newTokens }
+              : user
+          ));
+        }
       }
     }
 
-          // 🎯 FIXED: Process losers correctly
-      // Losers need to have their stake deducted now
-      for (const loserId of losers) {
-        const loser = users.find(u => u.id === loserId);
-        if (loser) {
-          // Deduct stake from losers
-          const newTokens = loser.tokens - bet.stakeTokens;
-          await dataService.updateUserTokens(loserId, newTokens, 'bet_stake', bet.id, bet.title);
+    // 🎯 FIXED: Process losers correctly
+    // Losers need to have their stake deducted now
+    for (const loserId of losers) {
+      const loser = users.find(u => u.id === loserId);
+      if (loser) {
+        // Deduct stake from losers
+        const newTokens = loser.tokens - bet.stakeTokens;
+        await dataService.updateUserTokens(loserId, newTokens, 'bet_lost', bet.id, bet.title);
+        
+        // 🆕 NEW: Log consolidated bet result (loss)
+        // Use the netLoss we already calculated instead of recalculating
+        const netLoss = -bet.stakeTokens;
+        await dataService.addBetResultLog(loserId, bet.id, bet.title, netLoss, 'bet_lost');
+        console.log(`💰 Loser ${loser.username}: loss result logged (${netLoss} tokens)`);
+        
+        // 🎯 CRITICAL FIX: Update currentUser state if this is the current user
+        if (loserId === currentUser?.id) {
+          console.log('🔄 LOSER: Updating currentUser tokens immediately:', { 
+            oldTokens: currentUser.tokens, 
+            newTokens 
+          });
+          setCurrentUser(prev => ({ ...prev, tokens: newTokens }));
           
-          // 🆕 NEW: Log consolidated bet result (loss)
-          await dataService.logBetFinalResult(loserId, bet.id, bet.title, bet);
-          console.log(`💰 Loser ${loser.username}: loss result logged`);
+          // Also update global users state immediately
+          setUsers(prev => prev.map(user => 
+            user.id === loserId 
+              ? { ...user, tokens: newTokens }
+              : user
+          ));
         }
       }
+    }
 
     // 🎯 PLATFORM FEE: Log the fee collection
     console.log(`💰 Platform fee collected: ${platformFee} tokens`);
@@ -807,7 +996,38 @@ export default function BetMeApp() {
     if (!validateTokenConservation('bet completion', bet)) {
       console.error('❌ CRITICAL: Token conservation validation failed after redistribution!');
     }
-  }, [users, validateTokenConservation, validateBetIntegrity]);
+    
+      // 🎯 CRITICAL FIX: Final token sync check after redistribution
+  if (currentUser) {
+    const finalUser = users.find(u => u.id === currentUser.id);
+    if (finalUser && finalUser.tokens !== currentUser.tokens) {
+      console.log('🔄 FINAL SYNC: Updating currentUser tokens after redistribution:', { 
+        oldTokens: currentUser.tokens, 
+        newTokens: finalUser.tokens 
+      });
+      setCurrentUser(prev => ({ ...prev, tokens: finalUser.tokens }));
+    }
+  }
+  
+  console.log('🎯 Token redistribution complete - currentUser tokens:', currentUser?.tokens);
+  
+  // 🎯 DEBUG: Test token calculation logic
+  console.log('🧮 TOKEN CALCULATION TEST:');
+  console.log('  - Bet participants:', bet.participants.length);
+  console.log('  - Stake per person:', bet.stakeTokens);
+  console.log('  - Total stakes:', bet.stakeTokens * bet.participants.length);
+  console.log('  - Platform fee (3%):', Math.floor((bet.stakeTokens * bet.participants.length) * 0.03));
+  console.log('  - Available for winners:', availableForWinners);
+  console.log('  - Winners count:', winners.length);
+  console.log('  - Payout per winner:', payoutPerWinner);
+  console.log('  - Net gain per winner:', payoutPerWinner - bet.stakeTokens);
+  console.log('  - Net loss per loser:', -bet.stakeTokens);
+    
+    } catch (error) {
+      console.error('❌ Error in processTokenRedistribution:', error);
+      throw error; // Re-throw to be caught by the calling function
+    }
+  }, [users, validateTokenConservation, validateBetIntegrity, currentUser]);
 
   // ============================================================================
   // VOTING AND BET COMPLETION
@@ -971,23 +1191,41 @@ export default function BetMeApp() {
           // 🎯 FIXED: Show completion message immediately
           showSuccess(`🎉 Voting complete! Winner: ${absoluteMajority}`);
           
-          // 🎯 FIXED: Process background operations
-          Promise.all([
-            // Save to data service
-            dataService.updateBet(betId, { 
+          // 🎯 FIXED: Process background operations with better error handling
+          try {
+            console.log('🔄 Starting background operations...');
+            
+            // Save bet completion to data service
+            console.log('🔄 1/3: Saving bet completion...');
+            await dataService.updateBet(betId, { 
               status: BET_STATUS.COMPLETED, 
               winner: absoluteMajority 
-            }),
+            });
+            console.log('✅ 1/3: Bet completion saved');
+            
             // Process token redistribution
-            processTokenRedistribution(completedBet),
+            console.log('🔄 2/3: Processing token redistribution...');
+            await processTokenRedistribution(completedBet);
+            console.log('✅ 2/3: Token redistribution complete');
+            
             // Process credibility changes
-            processCredibilityForBet(completedBet)
-          ]).then(() => {
+            console.log('🔄 3/3: Processing credibility changes...');
+            await processCredibilityForBet(completedBet);
+            console.log('✅ 3/3: Credibility changes complete');
+            
             console.log('✅ All background operations completed successfully');
-          }).catch(error => {
+          } catch (error) {
             console.error('❌ Error in background operations:', error);
-            showError('Voting completed but some operations failed. Please check.');
-          });
+            
+            // Identify which operation failed
+            if (error.message?.includes('token')) {
+              showError('Voting completed but token distribution failed. Please check your balance.');
+            } else if (error.message?.includes('credibility')) {
+              showError('Voting completed but credibility update failed. Please check your stats.');
+            } else {
+              showError('Voting completed but some operations failed. Please check.');
+            }
+          }
         } else {
           showError('No absolute majority reached. Voting will continue until 3-day window expires.');
         }
@@ -1041,6 +1279,118 @@ export default function BetMeApp() {
       showError('Failed to remove friend. Please try again.');
     }
   }, [refreshAllData, showError, showSuccess]);
+
+  // 🆕 NEW: Restore all demo friendships for testing
+  const restoreDemoFriendships = useCallback(async () => {
+    try {
+      console.log('🔄 Restoring demo friendships...');
+      
+      // Reset to original demo data friendships
+      const success = await dataService.resetDemoData();
+      
+      if (success) {
+        await refreshAllData();
+        showSuccess('Demo friendships restored! All users are friends again.');
+      } else {
+        showError('Failed to restore demo friendships.');
+      }
+    } catch (error) {
+      console.error('❌ Error restoring demo friendships:', error);
+      showError('Failed to restore demo friendships.');
+    }
+  }, [refreshAllData, showError, showSuccess]);
+
+  // 🆕 NEW: Clear all friends for a specific user (for testing)
+  const clearUserFriends = useCallback(async (userId) => {
+    try {
+      console.log('🧹 Clearing all friends for user:', userId);
+      
+      const success = await dataService.clearAllFriends(userId);
+      
+      if (success) {
+        await refreshAllData();
+        showSuccess('All friends cleared for testing!');
+      } else {
+        showError('Failed to clear friends.');
+      }
+    } catch (error) {
+      console.error('❌ Error clearing friends:', error);
+      showError('Failed to clear friends.');
+    }
+  }, [refreshAllData, showError, showSuccess]);
+
+  // 🎯 PRODUCTION READY: Handle profile invitation links and automatically add friends
+  const handleProfileInvitation = useCallback(async (inviteUserId) => {
+    if (!currentUser) return;
+    
+    try {
+      console.log('🔗 Processing profile invitation from user:', inviteUserId);
+      console.log('🔗 Current user:', currentUser.id, currentUser.username);
+      console.log('🔗 Invite user ID:', inviteUserId);
+      
+      // Parse the invite user ID
+      const parsedInviteUserId = parseInt(inviteUserId);
+      if (isNaN(parsedInviteUserId)) {
+        console.error('❌ Invalid invite user ID:', inviteUserId);
+        showError('Invalid invitation link format.');
+        return;
+      }
+      
+      // Check if the inviting user exists
+      const invitingUser = users.find(u => u.id === parsedInviteUserId);
+      if (!invitingUser) {
+        console.error('❌ Inviting user not found:', parsedInviteUserId);
+        showError('Invalid invitation link. User not found.');
+        return;
+      }
+      
+      console.log('🔗 Inviting user found:', invitingUser.username);
+      
+      // Get current user's friends list from data service (not from local state)
+      const currentUserFriends = await dataService.getUserFriends(currentUser.id);
+      console.log('🔗 Current user friends from data service:', currentUserFriends);
+      
+      // Check if already friends
+      const isAlreadyFriends = currentUserFriends.includes(parsedInviteUserId);
+      console.log('🔗 Is already friends?', isAlreadyFriends);
+      
+      if (isAlreadyFriends) {
+        console.log('✅ Already friends with user:', parsedInviteUserId);
+        showSuccess('You are already friends with this user!');
+        return;
+      }
+      
+      // Add both users as friends (bidirectional friendship)
+      console.log('🤝 Adding friendship between users:', currentUser.id, 'and', parsedInviteUserId);
+      
+      // Add current user to inviting user's friends list
+      const success1 = await dataService.addFriend(parsedInviteUserId, currentUser.id);
+      console.log('🔗 First friendship add result:', success1);
+      
+      // Add inviting user to current user's friends list
+      const success2 = await dataService.addFriend(currentUser.id, parsedInviteUserId);
+      console.log('🔗 Second friendship add result:', success2);
+      
+      if (success1 && success2) {
+        console.log('✅ Friendship established successfully');
+        
+        // Refresh data to show new friendship
+        await refreshAllData();
+        
+        showSuccess(`You are now friends with ${invitingUser.username}!`);
+        
+        // Navigate to profile to show updated friends list
+        setCurrentView('profile');
+      } else {
+        console.error('❌ Failed to establish friendship');
+        showError('Failed to add friend. Please try again.');
+      }
+      
+    } catch (error) {
+      console.error('❌ Error processing profile invitation:', error);
+      showError('Failed to process invitation. Please try again.');
+    }
+  }, [currentUser, users, refreshAllData, showError, showSuccess]);
 
   // ============================================================================
   // RENDER LOGIC
@@ -1106,6 +1456,8 @@ export default function BetMeApp() {
             onGenerateInviteLink={generateInviteLink}
             onCopyInviteLink={copyInviteLink}
             onRemoveFriend={removeFriend}
+            onRestoreDemoFriendships={restoreDemoFriendships}
+            onClearUserFriends={clearUserFriends}
           />
         )}
         
@@ -1203,10 +1555,9 @@ export default function BetMeApp() {
               newParticipantBets: updatedBet.participantBets
             });
             
-            // 🎯 FIXED: Process background operations
+            // 🎯 FIXED: Process background operations with better error handling
             try {
-              // DON'T deduct tokens - only track participation
-              // Tokens will be handled in final consolidated result
+              console.log('🔄 Starting background operations for bet joining...');
               
               // 🎯 VALIDATION: Ensure token conservation after joining bet
               if (!validateTokenConservation('bet joining')) {
@@ -1214,14 +1565,16 @@ export default function BetMeApp() {
               }
               
               // Update bet in data service
+              console.log('🔄 1/2: Updating bet in data service...');
               await dataService.updateBet(selectedBet.id, {
                 participants: updatedBet.participants,
                 participantBets: updatedBet.participantBets
               });
+              console.log('✅ 1/2: Bet updated in data service');
               
               // Mark invitation as accepted if present
               if (selectedInvitation) {
-                console.log('✅ Marking invitation as accepted:', selectedInvitation.id);
+                console.log('🔄 2/2: Marking invitation as accepted...');
                 await dataService.updateInvitationStatus(selectedInvitation.id, 'accepted');
                 
                 // Update invitations state
@@ -1230,12 +1583,21 @@ export default function BetMeApp() {
                     ? { ...inv, status: 'accepted' }
                     : inv
                 ));
+                console.log('✅ 2/2: Invitation marked as accepted');
               }
               
               console.log('✅ All background operations completed successfully');
             } catch (error) {
               console.error('❌ Error in background operations:', error);
-              showError('Bet joined but some operations failed. Please check.');
+              
+              // Identify which operation failed
+              if (error.message?.includes('bet update')) {
+                showError('Bet joined but failed to save. Please check the bet details.');
+              } else if (error.message?.includes('invitation')) {
+                showError('Bet joined but invitation update failed. Please check your invitations.');
+              } else {
+                showError('Bet joined but some operations failed. Please check.');
+              }
             }
           }}
           onBack={() => setCurrentView('home')}

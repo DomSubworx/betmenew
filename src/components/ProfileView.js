@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Camera, Wallet, Share2, Users, User, Copy, Trash2, Target } from 'lucide-react';
 import { getFriends } from '../utils.js';
 
-function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBack, onUploadPhoto, onGenerateInvite, onCopyInvite, onRemoveFriend, onViewTokenHistory, onViewCredibility }) {
+function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBack, onUploadPhoto, onGenerateInviteLink, onCopyInviteLink, onRemoveFriend, onViewTokenHistory, onViewCredibility, onRestoreDemoFriendships, onClearUserFriends }) {
   const friends = getFriends(currentUser.id, users);
   const currentProfilePhoto = userProfiles[currentUser.id];
   const currentInviteLink = inviteLinks[currentUser.id];
@@ -199,7 +199,7 @@ function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBa
                     className="flex-1 p-2 border rounded text-sm bg-white"
                   />
                   <motion.button
-                    onClick={() => onCopyInvite(currentInviteLink)}
+                    onClick={() => onCopyInviteLink(currentInviteLink)}
                     className="bg-primary-500 text-white p-2 rounded hover:bg-primary-600 transition-colors"
                     whileTap={{ scale: 0.98 }}
                   >
@@ -209,7 +209,7 @@ function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBa
               </div>
             ) : (
               <motion.button
-                onClick={() => onGenerateInvite(currentUser.id)}
+                onClick={() => onGenerateInviteLink(currentUser.id)}
                 className="w-full bg-primary-500 text-white p-3 rounded-lg font-semibold hover:bg-primary-600 transition-colors flex items-center justify-center space-x-2"
                 whileTap={{ scale: 0.98 }}
               >
@@ -219,7 +219,7 @@ function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBa
             )}
             
             <p className="text-sm text-gray-500">
-              Share this link with your friends to add them directly to your friends list.
+              Share this link with your friends. When they visit it, they'll automatically be added to your friends list!
             </p>
           </div>
         </motion.div>
@@ -230,6 +230,31 @@ function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBa
             <Users size={20} className="mr-2" />
             My Friends ({friends.length})
           </h2>
+          
+          {/* 🎯 PRODUCTION READY: Test Mode for Friend Addition System */}
+          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <h3 className="text-sm font-medium text-yellow-800 mb-2">🧪 Test Friend Addition System</h3>
+            <p className="text-xs text-yellow-700 mb-3">
+              Test the automatic friend addition system for production deployment
+            </p>
+            <div className="space-y-2">
+              <button
+                onClick={() => onClearUserFriends(currentUser.id)}
+                className="w-full text-xs bg-red-100 text-red-800 px-2 py-1 rounded border border-red-300 hover:bg-red-200 transition-colors"
+              >
+                🧹 Clear ALL My Friends (Test Mode)
+              </button>
+              <button
+                onClick={() => onRestoreDemoFriendships()}
+                className="w-full text-xs bg-green-100 text-green-800 px-2 py-1 rounded border border-green-300 hover:bg-green-200 transition-colors"
+              >
+                🔄 Restore All Demo Friendships
+              </button>
+              <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
+                <strong>Production Test:</strong> Clear friends → Generate invite link → Visit link with different user → Should automatically become friends!
+              </div>
+            </div>
+          </div>
           
           {friends.length === 0 ? (
             <motion.div className="text-center py-8 text-gray-500" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>

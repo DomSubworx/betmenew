@@ -188,6 +188,22 @@ export const dataService = {
     return supabaseService.addFriend(userId, friendId);
   },
 
+  async clearAllFriends(userId) {
+    if (isDemoMode()) {
+      return demoDataService.clearAllFriends(userId);
+    }
+    // For Supabase, you might want to implement this differently
+    return Promise.resolve(false);
+  },
+
+  async getUserFriends(userId) {
+    if (isDemoMode()) {
+      return demoDataService.getUserFriends(userId);
+    }
+    // For Supabase, implement this based on your schema
+    return Promise.resolve([]);
+  },
+
   async removeFriend(userId, friendId) {
     if (isDemoMode()) {
       return demoDataService.removeFriend(userId, friendId);
@@ -200,8 +216,8 @@ export const dataService = {
     if (isDemoMode()) {
       return demoDataService.generateInviteLink(userId);
     }
-    // For Supabase, you might want to implement a different invite link system
-    return Promise.resolve(`betme://invite/${userId}/${Date.now()}`);
+    // For Supabase, use web URL with invite parameter
+    return Promise.resolve(`${window.location.origin}${window.location.pathname}?invite=${userId}`);
   },
 
   // Real-time subscriptions (only for Supabase)
