@@ -240,6 +240,17 @@ export default function BetMeApp() {
     }
   }, [selectedBet?.chatMessages]);
 
+  // 🆕 NEW: Update selectedBet when bets state changes to keep chat in sync
+  useEffect(() => {
+    if (selectedBet && currentView === 'detail') {
+      const updatedBet = bets.find(b => b.id === selectedBet.id);
+      if (updatedBet && JSON.stringify(updatedBet.chatMessages) !== JSON.stringify(selectedBet.chatMessages)) {
+        console.log('🔄 Updating selectedBet with new chat messages:', updatedBet.chatMessages?.length);
+        setSelectedBet(updatedBet);
+      }
+    }
+  }, [bets, selectedBet, currentView]);
+
   // ============================================================================
   // USER MANAGEMENT
   // ============================================================================
@@ -1100,7 +1111,7 @@ export default function BetMeApp() {
         
         {currentView === 'detail' && selectedBet && (
           <BetDetailView 
-            bet={selectedBet}
+            bet={bets.find(b => b.id === selectedBet.id) || selectedBet}
             currentUser={currentUser}
             users={users}
             invitations={invitations}

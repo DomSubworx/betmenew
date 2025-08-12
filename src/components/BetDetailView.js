@@ -14,6 +14,14 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
   const [timeRemaining, setTimeRemaining] = useState(null);
   const [isTestingAnnulment, setIsTestingAnnulment] = useState(false);
   const chatEndRef = useRef(null);
+  
+  // 🆕 NEW: Local chat messages state for immediate updates
+  const [localChatMessages, setLocalChatMessages] = useState(bet?.chatMessages || []);
+  
+  // 🆕 NEW: Update local chat messages when bet prop changes
+  useEffect(() => {
+    setLocalChatMessages(bet?.chatMessages || []);
+  }, [bet]);
 
   // 🎨 NEW: Chat bubble colors for each user
   const chatBubbleColors = [
@@ -41,7 +49,7 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
 
   useEffect(() => {
     scrollToBottom();
-  }, [bet.chatMessages]);
+  }, [localChatMessages]);
 
   // 🆕 NEW: Track voting time remaining
   useEffect(() => {
@@ -76,6 +84,10 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
     };
 
     // 🎯 FIXED: Update UI immediately for responsive feedback
+    // Update local chat messages immediately for instant display
+    setLocalChatMessages(prev => [...prev, message]);
+    
+    // Update global bets state
     setBets(prev => prev.map(b => 
       b.id === bet.id 
         ? { 
@@ -92,6 +104,9 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
     try {
       await dataService.addChatMessage(bet.id, currentUser.id, messageText);
       console.log('✅ Chat message saved to data service');
+      
+      // Chat message saved successfully
+      
       // 🎯 FIXED: Show subtle success feedback (optional - can be removed if too noisy)
       // showSuccess('Message sent!');
     } catch (error) {
@@ -744,13 +759,13 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
           <div className="p-4 border-b">
             <h3 className="font-semibold text-gray-800 flex items-center">
               <MessageCircle size={20} className="mr-2" />
-              Chat ({bet.chatMessages?.length || 0})
+              Chat ({localChatMessages?.length || 0})
             </h3>
           </div>
           
           <div className="h-64 overflow-y-auto p-4 space-y-3">
-            {bet.chatMessages && bet.chatMessages.length > 0 ? (
-              bet.chatMessages.map((msg, index) => {
+            {localChatMessages && localChatMessages.length > 0 ? (
+              localChatMessages.map((msg, index) => {
                 const isCurrentUser = msg.userId === currentUser.id;
                 const bubbleColor = getUserChatColor(msg.userId);
                 
