@@ -77,9 +77,9 @@ function ChooseOutcomeView({ bet, currentUser, invitation, onOutcomeChosen, onBa
         <motion.div className="bg-yellow-50 rounded-xl p-4" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
           <h4 className="font-semibold text-yellow-800 mb-2">Token Info</h4>
           <div className="text-sm text-yellow-700">
-            <p>• Your current balance: <span className="font-medium">{currentUser.tokens} 🪙</span></p>
-            <p>• After participation: <span className="font-medium">{currentUser.tokens - bet.stakeTokens} 🪙</span></p>
-            <p>• Win with correct bet: <span className="font-medium">{Math.floor((bet.stakeTokens * bet.participants.length) * 0.97)} 🪙</span></p>
+                    <p>• Your current balance: <span className="font-medium">{currentUser.tokens} 💰</span></p>
+        <p>• After participation: <span className="font-medium">{currentUser.tokens - bet.stakeTokens} 💰</span></p>
+        <p>• Win with correct bet: <span className="font-medium">{Math.floor((bet.stakeTokens * bet.participants.length) * 0.97)} 💰</span></p>
           </div>
         </motion.div>
 

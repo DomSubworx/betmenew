@@ -316,16 +316,16 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
           <div className="grid grid-cols-2 gap-4 text-sm mb-3">
             <div>
               <p className="text-gray-500">Pot:</p>
-              <p className="font-medium">{totalPot} 🪙</p>
+              <p className="font-medium">{totalPot} 💰</p>
             </div>
             <div>
               <p className="text-gray-500">Stake:</p>
-              <p className="font-medium">{bet.stakeTokens} 🪙</p>
+              <p className="font-medium">{bet.stakeTokens} 💰</p>
             </div>
           </div>
 
           <div className="text-xs text-gray-500">
-            App Fee: {appFee} 🪙 • Win: {winnersReward} 🪙
+                            App Fee: {appFee} 💰 • Win: {winnersReward} 💰
           </div>
         </div>
 
@@ -556,8 +556,8 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
                     : 'text-yellow-600'
               }`}>
                 {didCurrentUserWin() === true 
-                  ? `Congratulations! You won ${Math.floor((bet.stakeTokens * bet.participants.length) * 0.97)} 🪙`
-                  : `Win for all who bet correctly: ${Math.floor((bet.stakeTokens * bet.participants.length) * 0.97)} 🪙`
+                                  ? `Congratulations! You won ${Math.floor((bet.stakeTokens * bet.participants.length) * 0.97)} 💰`
+                : `Win for all who bet correctly: ${Math.floor((bet.stakeTokens * bet.participants.length) * 0.97)} 💰`
                 }
               </div>
               
@@ -635,7 +635,7 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
                       <div className={`font-bold text-lg ${
                         result.result === 'won' ? 'text-green-600' : 'text-red-600'
                       }`}>
-                        {result.result === 'won' ? '+' : ''}{result.tokens} 🪙
+                        {result.result === 'won' ? '+' : ''}{result.tokens} 💰
                       </div>
                     </div>
                     
@@ -658,14 +658,14 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
                     
                     {result.result === 'won' && (
                       <div className="mt-2 text-sm text-green-700">
-                        <div>Stake returned: +{result.stakeReturned} 🪙</div>
-                        <div>Winnings: +{result.winnings} 🪙</div>
+                                        <div>Stake returned: +{result.stakeReturned} 💰</div>
+                <div>Winnings: +{result.winnings} 💰</div>
                       </div>
                     )}
                     
                     {result.result === 'lost' && (
                       <div className="mt-2 text-sm text-red-700">
-                        <div>Stake lost: -{result.stakeLost} 🪙</div>
+                        <div>Stake lost: -{result.stakeLost} 💰</div>
                       </div>
                     )}
                   </div>
@@ -676,7 +676,7 @@ function BetDetailView({ bet, currentUser, users, invitations, setInvitations, s
               <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-600">Platform Fee (3%):</span>
-                  <span className="font-medium text-gray-800">-{Math.floor((bet.stakeTokens * bet.participants.length) * 0.03)} 🪙</span>
+                  <span className="font-medium text-gray-800">-{Math.floor((bet.stakeTokens * bet.participants.length) * 0.03)} 💰</span>
                 </div>
               </div>
             </div>

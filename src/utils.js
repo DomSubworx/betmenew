@@ -56,10 +56,29 @@ export const getFriends = (userId, users) => {
 // Time formatting
 export const formatTime = (timestamp) => {
   const date = new Date(timestamp);
-  return date.toLocaleTimeString('en-US', { 
-    hour: '2-digit', 
-    minute: '2-digit' 
-  });
+  const now = new Date();
+  const isToday = date.toDateString() === now.toDateString();
+  const isYesterday = date.toDateString() === new Date(now.getTime() - 24 * 60 * 60 * 1000).toDateString();
+  
+  if (isToday) {
+    return `Today, ${date.toLocaleTimeString('en-US', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    })}`;
+  } else if (isYesterday) {
+    return `Yesterday, ${date.toLocaleTimeString('en-US', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    })}`;
+  } else {
+    return `${date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric' 
+    })}, ${date.toLocaleTimeString('en-US', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    })}`;
+  }
 };
 
 // LocalStorage helpers
@@ -143,7 +162,18 @@ export const calculateAbsoluteMajority = (votes, totalParticipants) => {
   const majorityOutcomes = Object.keys(voteCounts).filter(outcome => voteCounts[outcome] === maxVotes);
   
   // Absolute majority: more than 50% of ALL participants
-  const absoluteMajorityThreshold = Math.ceil(totalParticipants * VOTING_CONFIG.MAJORITY_THRESHOLD_PERCENTAGE);
+  // For 3 participants: threshold = Math.floor(3 * 0.50) = 1, so we need > 1 votes = 2 or more votes
+  const absoluteMajorityThreshold = Math.floor(totalParticipants * VOTING_CONFIG.MAJORITY_THRESHOLD_PERCENTAGE);
+  
+  console.log('🔍 Absolute majority calculation:', {
+    votes,
+    totalParticipants,
+    voteCounts,
+    maxVotes,
+    majorityOutcomes,
+    absoluteMajorityThreshold,
+    hasMajority: majorityOutcomes.length === 1 && maxVotes > absoluteMajorityThreshold
+  });
   
   if (majorityOutcomes.length === 1 && maxVotes > absoluteMajorityThreshold) {
     return majorityOutcomes[0];

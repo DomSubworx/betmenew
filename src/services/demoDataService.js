@@ -492,7 +492,11 @@ export const demoDataService = {
     const logs = userId 
       ? demoCredibilityLogs.filter(log => log.userId === userId)
       : demoCredibilityLogs;
-    return Promise.resolve([...logs]);
+    
+    // Sort logs from newest to oldest (latest first)
+    const sortedLogs = [...logs].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    return Promise.resolve(sortedLogs);
   },
 
   // Token logs

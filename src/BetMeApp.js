@@ -531,9 +531,16 @@ export default function BetMeApp() {
       // 🎯 FIXED: Update local state immediately for UI responsiveness
       setBets(prev => [newBet, ...prev]);
       
-      // 🎯 FIXED: DON'T deduct tokens when creating bet - they will be handled at completion
-      // Keep current user tokens unchanged for now
-      setCurrentUser(prev => ({ ...prev, tokens: prev.tokens }));
+      // 🎯 CRITICAL FIX: Deduct tokens when creating bet
+      const newTokens = currentUser.tokens - stakeTokens;
+      setCurrentUser(prev => ({ ...prev, tokens: newTokens }));
+      
+      // 🎯 CRITICAL FIX: Update global users state immediately
+      setUsers(prev => prev.map(user => 
+        user.id === currentUser.id 
+          ? { ...user, tokens: newTokens }
+          : user
+      ));
 
       // 🎯 FIXED: Create invitations in background (don't block UI)
       const friendsToInvite = betData.participants.filter(id => id !== currentUser.id);
@@ -570,9 +577,12 @@ export default function BetMeApp() {
         showError('Bet created but some invitations failed. Please check.');
       });
 
-      // 🎯 FIXED: DON'T deduct tokens when creating bet - they will be handled at completion
-      // No token movement should be logged for bet creation
-      console.log('✅ Bet created - tokens will be handled at completion');
+      // 🎯 CRITICAL FIX: Log token deduction for bet creation
+      console.log('🔄 Logging token deduction for bet creation...');
+      await dataService.updateUserTokens(currentUser.id, newTokens, 'bet_stake', newBet.id, newBet.title);
+      console.log('✅ Token deduction logged for bet creation');
+      
+      console.log('✅ Bet created - tokens deducted and logged');
       
       // 🎯 VALIDATION: Ensure token conservation after bet creation
       if (!validateTokenConservation('bet creation')) {
@@ -783,13 +793,14 @@ export default function BetMeApp() {
   }, [users, refreshAllData]);
 
   /**
-   * Process token redistribution for a completed bet
-   * This is the core financial logic that determines winners and losers
+   * Process token redistribution after a bet is completed
    * 
-   * TOKEN CONSERVATION PRINCIPLE:
-   * - Total tokens in system remains constant (minus platform fee)
-   * - Winners get their stake back + share of losers' stakes (minus platform fee)
-   * - Losers lose their stake permanently
+   * TOKEN FLOW MODEL:
+   * - Users NEVER lose tokens when joining bets (tokens are held in escrow)
+   * - When bet completes:
+   *   - Winners get their stake back + share of losers' stakes (minus platform fee)
+   *   - Losers lose their stake permanently
+   *   - Platform fee is deducted from total pot
    * 
    * MATHEMATICAL MODEL:
    * - Total stakes collected = participants × stakeTokens
@@ -812,217 +823,183 @@ export default function BetMeApp() {
         throw new Error('Bet integrity validation failed');
       }
 
-    // 🎯 MATHEMATICAL VALIDATION: Ensure pot calculation is correct
-    const totalStakes = bet.stakeTokens * bet.participants.length;
-    const platformFee = Math.floor(totalStakes * 0.03); // 3% platform fee
-    
-    // Determine winners and losers
-    const winners = [];
-    const losers = [];
-    
-    for (const participantId of bet.participants) {
-      const participantBet = bet.participantBets[participantId];
-      if (participantBet === bet.winner) {
-        winners.push(participantId);
-      } else {
-        losers.push(participantId);
-      }
-    }
-
-    // 🎯 FIXED: Calculate available for winners correctly
-    // Available = total pot - platform fee
-    const totalPot = totalStakes;
-    const availableForWinners = totalPot - platformFee;
-    
-    console.log('💰 Token redistribution calculation:', {
-      totalStakes,
-      totalPot,
-      platformFee,
-      availableForWinners,
-      participants: bet.participants.length
-    });
-    
-    // 🎯 DEBUG: Show expected token distribution
-    console.log('🎯 EXPECTED TOKEN DISTRIBUTION:');
-    console.log(`  - Total pot: ${totalStakes} tokens`);
-    console.log(`  - Platform fee: ${platformFee} tokens`);
-    console.log(`  - Available for winners: ${availableForWinners} tokens`);
-    console.log(`  - Winners: ${winners.length} (${winners.join(', ')})`);
-    console.log(`  - Losers: ${losers.length} (${losers.join(', ')})`);
-    console.log(`  - Stake per person: ${bet.stakeTokens} tokens`);
-    console.log(`  - Payout per winner: ${payoutPerWinner} tokens`);
-    console.log(`  - Net gain per winner: ${payoutPerWinner - bet.stakeTokens} tokens`);
-    console.log(`  - Net loss per loser: -${bet.stakeTokens} tokens`);
-
-    console.log('💰 Winners and losers:', { winners, losers });
-
-    // 🎯 EDGE CASE: Handle tie (no clear winner) - return all stakes
-    if (winners.length === 0) {
-      console.log('💰 No winners - returning stakes to all participants');
+      // 🎯 MATHEMATICAL VALIDATION: Ensure pot calculation is correct
+      const totalStakes = bet.stakeTokens * bet.participants.length;
+      const platformFee = Math.floor(totalStakes * 0.03); // 3% platform fee
+      
+      // Determine winners and losers
+      const winners = [];
+      const losers = [];
+      
       for (const participantId of bet.participants) {
-        const participant = users.find(u => u.id === participantId);
-        if (participant) {
-          // No token changes for tie - stakes were never deducted
-          // Just log the consolidated result
-          
-          // 🆕 NEW: Log consolidated bet result (tie)
-          // No token changes for tie - stakes were never deducted
-          await dataService.addBetResultLog(participantId, bet.id, bet.title, 0, 'bet_tie');
-          console.log(`💰 Participant ${participant.username}: tie result logged (0 tokens)`);
+        const participantBet = bet.participantBets[participantId];
+        if (participantBet === bet.winner) {
+          winners.push(participantId);
+        } else {
+          losers.push(participantId);
         }
       }
-      console.log(`💰 Platform fee collected: ${platformFee} tokens (from tie scenario)`);
-      return;
-    }
 
-    // 🎯 CORRECTED LOGIC: Calculate payout per winner
-    // Winners get their stake back + equal share of losers' stakes (minus platform fee)
-    const payoutPerWinner = Math.floor(availableForWinners / winners.length);
-    
-    console.log('💰 Payout per winner:', payoutPerWinner);
-
-    // 🎯 FIXED: Process winners correctly
-    // Winners get their stake back + their share of the pot
-    for (const winnerId of winners) {
-      const winner = users.find(u => u.id === winnerId);
-      if (winner) {
-        // 🎯 CRITICAL FIX: Winners get their stake back + winnings
-        // They never lost their stake, so they just get the winnings
-        const netGain = payoutPerWinner - bet.stakeTokens; // winnings minus their stake
-        const newTokens = winner.tokens + netGain;
-        
-        console.log(`💰 Winner ${winner.username}: stake=${bet.stakeTokens}, winnings=${payoutPerWinner}, netGain=${netGain}`);
-        
-        await dataService.updateUserTokens(winnerId, newTokens, 'bet_won', bet.id, bet.title);
-        
-        // 🆕 NEW: Log consolidated bet result (win) - show the NET gain
-        // Use the netGain we already calculated instead of recalculating
-        await dataService.addBetResultLog(winnerId, bet.id, bet.title, netGain, 'bet_won');
-        console.log(`💰 Winner ${winner.username}: win result logged (+${netGain} tokens)`);
-        
-        // 🎯 CRITICAL FIX: Update currentUser state if this is the current user
-        if (winnerId === currentUser?.id) {
-          console.log('🔄 WINNER: Updating currentUser tokens immediately:', { 
-            oldTokens: currentUser.tokens, 
-            newTokens 
-          });
-          setCurrentUser(prev => ({ ...prev, tokens: newTokens }));
-          
-          // Also update global users state immediately
-          setUsers(prev => prev.map(user => 
-            user.id === winnerId 
-              ? { ...user, tokens: newTokens }
-              : user
-          ));
-        }
-      }
-    }
-
-    // 🎯 FIXED: Process losers correctly
-    // Losers need to have their stake deducted now
-    for (const loserId of losers) {
-      const loser = users.find(u => u.id === loserId);
-      if (loser) {
-        // Deduct stake from losers
-        const newTokens = loser.tokens - bet.stakeTokens;
-        await dataService.updateUserTokens(loserId, newTokens, 'bet_lost', bet.id, bet.title);
-        
-        // 🆕 NEW: Log consolidated bet result (loss)
-        // Use the netLoss we already calculated instead of recalculating
-        const netLoss = -bet.stakeTokens;
-        await dataService.addBetResultLog(loserId, bet.id, bet.title, netLoss, 'bet_lost');
-        console.log(`💰 Loser ${loser.username}: loss result logged (${netLoss} tokens)`);
-        
-        // 🎯 CRITICAL FIX: Update currentUser state if this is the current user
-        if (loserId === currentUser?.id) {
-          console.log('🔄 LOSER: Updating currentUser tokens immediately:', { 
-            oldTokens: currentUser.tokens, 
-            newTokens 
-          });
-          setCurrentUser(prev => ({ ...prev, tokens: newTokens }));
-          
-          // Also update global users state immediately
-          setUsers(prev => prev.map(user => 
-            user.id === loserId 
-              ? { ...user, tokens: newTokens }
-              : user
-          ));
-        }
-      }
-    }
-
-    // 🎯 PLATFORM FEE: Log the fee collection
-    console.log(`💰 Platform fee collected: ${platformFee} tokens`);
-
-    // 🎯 MATHEMATICAL VERIFICATION: Ensure token conservation
-    const totalPayouts = winners.length * payoutPerWinner;
-    const totalSystemChange = totalPayouts + platformFee;
-    
-    // 🎯 SIMPLE TEST: Verify the math
-    console.log('💰 Mathematical verification:', {
-      totalStakes,
-      totalPayouts,
-      platformFee,
-      totalSystemChange,
-      conservation: totalStakes === totalSystemChange ? '✅ CONSERVED' : '❌ VIOLATED'
-    });
-
-    // 🎯 DETAILED BREAKDOWN FOR DEBUGGING
-    console.log('💰 Detailed breakdown:', {
-      participants: bet.participants.length,
-      winners: winners.length,
-      losers: losers.length,
-      stakePerPerson: bet.stakeTokens,
-      totalStakesCollected: totalStakes,
-      platformFeeDeducted: platformFee,
-      availableForWinners: availableForWinners,
-      payoutPerWinner: payoutPerWinner,
-      totalPayoutsToWinners: totalPayouts,
-      totalSystemChange: totalSystemChange,
-      difference: totalStakes - totalSystemChange
-    });
-
-    if (totalStakes !== totalSystemChange) {
-      console.error('❌ CRITICAL: Token conservation violated!', {
+      // 🎯 FIXED: Calculate available for winners correctly
+      // Available = total pot - platform fee
+      const totalPot = totalStakes;
+      const availableForWinners = totalPot - platformFee;
+      
+      console.log('💰 Token redistribution calculation:', {
         totalStakes,
+        totalPot,
+        platformFee,
+        availableForWinners,
+        participants: bet.participants.length
+      });
+      
+      // 🎯 EDGE CASE: Handle tie (no clear winner) - return all stakes
+      if (winners.length === 0) {
+        console.log('💰 No winners - returning stakes to all participants');
+        for (const participantId of bet.participants) {
+          const participant = users.find(u => u.id === participantId);
+          if (participant) {
+            // No token changes for tie - stakes were never deducted
+            // Just log the consolidated result
+            await dataService.addBetResultLog(participantId, bet.id, bet.title, 0, 'bet_tie');
+            console.log(`💰 Participant ${participant.username}: tie result logged (0 tokens)`);
+          }
+        }
+        console.log(`💰 Platform fee collected: ${platformFee} tokens (from tie scenario)`);
+        return;
+      }
+
+      // 🎯 CORRECTED LOGIC: Calculate payout per winner
+      // Winners get their stake back + equal share of losers' stakes (minus platform fee)
+      const payoutPerWinner = Math.floor(availableForWinners / winners.length);
+      
+      console.log('💰 Payout per winner:', payoutPerWinner);
+
+      // 🎯 FIXED: Process winners correctly
+      // Winners get their stake back + their share of the pot
+      for (const winnerId of winners) {
+        const winner = users.find(u => u.id === winnerId);
+        if (winner) {
+          // 🎯 CRITICAL FIX: Winners get their stake back + winnings
+          // Since tokens were deducted when joining, they get their stake back + winnings
+          const netGain = payoutPerWinner - bet.stakeTokens; // winnings minus their stake
+          const newTokens = winner.tokens + payoutPerWinner; // current balance + full payout
+          
+          console.log(`💰 Winner ${winner.username}: stake=${bet.stakeTokens}, winnings=${payoutPerWinner}, netGain=${netGain}, newBalance=${newTokens}`);
+          
+          // 🎯 CRITICAL FIX: Update user tokens immediately
+          await dataService.updateUserTokens(winnerId, newTokens, 'bet_won', bet.id, bet.title);
+          
+          // 🆕 NEW: Log consolidated bet result (win) - show the NET gain
+          await dataService.addBetResultLog(winnerId, bet.id, bet.title, netGain, 'bet_won');
+          console.log(`💰 Winner ${winner.username}: win result logged (+${netGain} tokens)`);
+          
+          // 🎯 CRITICAL FIX: Update currentUser state if this is the current user
+          if (winnerId === currentUser?.id) {
+            console.log('🔄 WINNER: Updating currentUser tokens immediately:', { 
+              oldTokens: currentUser.tokens, 
+              newTokens 
+            });
+            setCurrentUser(prev => ({ ...prev, tokens: newTokens }));
+            
+            // Also update global users state immediately
+            setUsers(prev => prev.map(user => 
+              user.id === winnerId 
+                ? { ...user, tokens: newTokens }
+                : user
+            ));
+          }
+        }
+      }
+
+      // 🎯 FIXED: Process losers correctly
+      // Losers already had their stake deducted when joining, so no further deduction needed
+      for (const loserId of losers) {
+        const loser = users.find(u => u.id === loserId);
+        if (loser) {
+          // 🎯 CRITICAL FIX: Losers already lost their stake when joining
+          // No token changes needed - just log the consolidated result
+          const netLoss = -bet.stakeTokens;
+          await dataService.addBetResultLog(loserId, bet.id, bet.title, netLoss, 'bet_lost');
+          console.log(`💰 Loser ${loser.username}: loss result logged (${netLoss} tokens) - tokens already deducted`);
+          
+          // 🎯 CRITICAL FIX: No token updates needed for losers since they already lost their stake
+          console.log(`💰 Loser ${loser.username}: no token update needed - stake already deducted when joining`);
+        }
+      }
+
+      // 🎯 PLATFORM FEE: Log the fee collection
+      console.log(`💰 Platform fee collected: ${platformFee} tokens`);
+
+      // 🎯 MATHEMATICAL VERIFICATION: Ensure token conservation
+      const totalPayouts = winners.length * payoutPerWinner;
+      const totalSystemChange = totalPayouts + platformFee;
+      
+      // 🎯 SIMPLE TEST: Verify the math
+      console.log('💰 Mathematical verification:', {
+        totalStakes,
+        totalPayouts,
+        platformFee,
         totalSystemChange,
+        conservation: totalStakes === totalSystemChange ? '✅ CONSERVED' : '❌ VIOLATED'
+      });
+
+      // 🎯 DETAILED BREAKDOWN FOR DEBUGGING
+      console.log('💰 Detailed breakdown:', {
+        participants: bet.participants.length,
+        winners: winners.length,
+        losers: losers.length,
+        stakePerPerson: bet.stakeTokens,
+        totalStakesCollected: totalStakes,
+        platformFeeDeducted: platformFee,
+        availableForWinners: availableForWinners,
+        payoutPerWinner: payoutPerWinner,
+        totalPayoutsToWinners: totalPayouts,
+        totalSystemChange: totalSystemChange,
         difference: totalStakes - totalSystemChange
       });
-    }
 
-    console.log('✅ Token redistribution complete for bet:', bet.id);
-    
-    // 🎯 FINAL VALIDATION: Ensure token conservation after redistribution
-    if (!validateTokenConservation('bet completion', bet)) {
-      console.error('❌ CRITICAL: Token conservation validation failed after redistribution!');
-    }
-    
+      if (totalStakes !== totalSystemChange) {
+        console.error('❌ CRITICAL: Token conservation violated!', {
+          totalStakes,
+          totalSystemChange,
+          difference: totalStakes - totalSystemChange
+        });
+      }
+
+      console.log('✅ Token redistribution complete for bet:', bet.id);
+      
+      // 🎯 FINAL VALIDATION: Ensure token conservation after redistribution
+      if (!validateTokenConservation('bet completion', bet)) {
+        console.error('❌ CRITICAL: Token conservation validation failed after redistribution!');
+      }
+      
       // 🎯 CRITICAL FIX: Final token sync check after redistribution
-  if (currentUser) {
-    const finalUser = users.find(u => u.id === currentUser.id);
-    if (finalUser && finalUser.tokens !== currentUser.tokens) {
-      console.log('🔄 FINAL SYNC: Updating currentUser tokens after redistribution:', { 
-        oldTokens: currentUser.tokens, 
-        newTokens: finalUser.tokens 
-      });
-      setCurrentUser(prev => ({ ...prev, tokens: finalUser.tokens }));
-    }
-  }
-  
-  console.log('🎯 Token redistribution complete - currentUser tokens:', currentUser?.tokens);
-  
-  // 🎯 DEBUG: Test token calculation logic
-  console.log('🧮 TOKEN CALCULATION TEST:');
-  console.log('  - Bet participants:', bet.participants.length);
-  console.log('  - Stake per person:', bet.stakeTokens);
-  console.log('  - Total stakes:', bet.stakeTokens * bet.participants.length);
-  console.log('  - Platform fee (3%):', Math.floor((bet.stakeTokens * bet.participants.length) * 0.03));
-  console.log('  - Available for winners:', availableForWinners);
-  console.log('  - Winners count:', winners.length);
-  console.log('  - Payout per winner:', payoutPerWinner);
-  console.log('  - Net gain per winner:', payoutPerWinner - bet.stakeTokens);
-  console.log('  - Net loss per loser:', -bet.stakeTokens);
-    
+      if (currentUser) {
+        const finalUser = users.find(u => u.id === currentUser.id);
+        if (finalUser && finalUser.tokens !== currentUser.tokens) {
+          console.log('🔄 FINAL SYNC: Updating currentUser tokens after redistribution:', { 
+            oldTokens: currentUser.tokens, 
+            newTokens: finalUser.tokens 
+          });
+          setCurrentUser(prev => ({ ...prev, tokens: finalUser.tokens }));
+        }
+      }
+      
+      console.log('🎯 Token redistribution complete - currentUser tokens:', currentUser?.tokens);
+      
+      // 🎯 DEBUG: Test token calculation logic
+      console.log('🧮 TOKEN CALCULATION TEST:');
+      console.log('  - Bet participants:', bet.participants.length);
+      console.log('  - Stake per person:', bet.stakeTokens);
+      console.log('  - Total stakes:', bet.stakeTokens * bet.participants.length);
+      console.log('  - Platform fee (3%):', Math.floor((bet.stakeTokens * bet.participants.length) * 0.03));
+      console.log('  - Available for winners:', availableForWinners);
+      console.log('  - Winners count:', winners.length);
+      console.log('  - Payout per winner:', payoutPerWinner);
+      console.log('  - Net gain per winner:', payoutPerWinner - bet.stakeTokens);
+      console.log('  - Net loss per loser:', -bet.stakeTokens);
+        
     } catch (error) {
       console.error('❌ Error in processTokenRedistribution:', error);
       throw error; // Re-throw to be caught by the calling function
@@ -1167,6 +1144,8 @@ export default function BetMeApp() {
       
       const allVoted = hasAllParticipantsVoted(updatedBet, users);
       console.log('🗳️ All participants voted:', allVoted);
+      console.log('🗳️ Current votes:', newVotes);
+      console.log('🗳️ Participants who voted:', Object.keys(newVotes));
 
       if (allVoted) {
         console.log('🗳️ ALL PARTICIPANTS VOTED - Checking for absolute majority...');
@@ -1525,9 +1504,24 @@ export default function BetMeApp() {
           onOutcomeChosen={async (outcome) => {
             console.log('🎯 User chose outcome:', { outcome, betId: selectedBet.id, userId: currentUser.id });
             
-            // 🎯 FIXED: DON'T deduct tokens when joining - only track participation
-            // Tokens will be handled in final consolidated result
-            setCurrentUser(prev => ({ ...prev, tokens: prev.tokens })); // Keep same tokens
+            // 🎯 CRITICAL FIX: Deduct tokens when joining bet
+            const stakeTokens = selectedBet.stakeTokens;
+            const newTokens = currentUser.tokens - stakeTokens;
+            
+            if (newTokens < 0) {
+              showError('Insufficient tokens to join this bet!');
+              return;
+            }
+            
+            // 🎯 CRITICAL FIX: Update currentUser tokens immediately
+            setCurrentUser(prev => ({ ...prev, tokens: newTokens }));
+            
+            // 🎯 CRITICAL FIX: Update global users state immediately
+            setUsers(prev => prev.map(user => 
+              user.id === currentUser.id 
+                ? { ...user, tokens: newTokens }
+                : user
+            ));
             
             // 🎯 FIXED: Update bet state immediately
             const updatedBet = {
@@ -1552,12 +1546,19 @@ export default function BetMeApp() {
             console.log('📝 Updated bet with new participant:', {
               betId: selectedBet.id,
               newParticipants: updatedBet.participants,
-              newParticipantBets: updatedBet.participantBets
+              newParticipantBets: updatedBet.participantBets,
+              tokensDeducted: stakeTokens,
+              newBalance: newTokens
             });
             
             // 🎯 FIXED: Process background operations with better error handling
             try {
               console.log('🔄 Starting background operations for bet joining...');
+              
+              // 🎯 CRITICAL FIX: Log token deduction in data service
+              console.log('🔄 1/3: Logging token deduction...');
+              await dataService.updateUserTokens(currentUser.id, newTokens, 'bet_stake', selectedBet.id, selectedBet.title);
+              console.log('✅ 1/3: Token deduction logged');
               
               // 🎯 VALIDATION: Ensure token conservation after joining bet
               if (!validateTokenConservation('bet joining')) {
@@ -1565,16 +1566,16 @@ export default function BetMeApp() {
               }
               
               // Update bet in data service
-              console.log('🔄 1/2: Updating bet in data service...');
+              console.log('🔄 2/3: Updating bet in data service...');
               await dataService.updateBet(selectedBet.id, {
                 participants: updatedBet.participants,
                 participantBets: updatedBet.participantBets
               });
-              console.log('✅ 1/2: Bet updated in data service');
+              console.log('✅ 2/3: Bet updated in data service');
               
               // Mark invitation as accepted if present
               if (selectedInvitation) {
-                console.log('🔄 2/2: Marking invitation as accepted...');
+                console.log('🔄 3/3: Marking invitation as accepted...');
                 await dataService.updateInvitationStatus(selectedInvitation.id, 'accepted');
                 
                 // Update invitations state
@@ -1583,7 +1584,7 @@ export default function BetMeApp() {
                     ? { ...inv, status: 'accepted' }
                     : inv
                 ));
-                console.log('✅ 2/2: Invitation marked as accepted');
+                console.log('✅ 3/3: Invitation marked as accepted');
               }
               
               console.log('✅ All background operations completed successfully');

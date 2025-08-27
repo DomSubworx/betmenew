@@ -96,7 +96,7 @@ function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBa
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm opacity-90">Current Balance</p>
-                <p className="text-3xl font-bold">{currentUser.tokens} 🪙</p>
+                <p className="text-3xl font-bold">{currentUser.tokens} 💰</p>
               </div>
               <div className="text-right">
                 <p className="text-sm opacity-90">Status</p>
@@ -157,27 +157,7 @@ function ProfileView({ currentUser, users, bets, userProfiles, inviteLinks, onBa
             </div>
           </motion.button>
           
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <div className="bg-gray-50 rounded-lg p-3 text-center">
-              <p className="text-sm text-gray-600">Total Bets</p>
-              <p className="text-xl font-bold text-gray-800">
-                {bets ? bets.filter(bet => 
-                  bet.participants.includes(currentUser.id) && bet.status === 'completed'
-                ).length : 0}
-              </p>
-            </div>
-            <div className="bg-gray-50 rounded-lg p-3 text-center">
-              <p className="text-sm text-gray-600">Wins</p>
-              <p className="text-xl font-bold text-gray-800">
-                {bets ? bets.filter(bet => 
-                  bet.participants.includes(currentUser.id) && 
-                  bet.status === 'completed' && 
-                  bet.winner && 
-                  bet.participantBets?.[currentUser.id] === bet.winner
-                ).length : 0}
-              </p>
-            </div>
-          </div>
+
         </motion.div>
 
         {/* Invite Link Section */}
