@@ -23,10 +23,10 @@ Open [http://localhost:3000](http://localhost:3000) to view the app.
 cp env.example .env
 
 # Edit .env with your Supabase credentials
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_key
 REACT_APP_ENVIRONMENT=supabase
 REACT_APP_USE_SUPABASE=true
-REACT_APP_SUPABASE_URL=your_supabase_url
-REACT_APP_SUPABASE_ANON_KEY=your_supabase_key
 
 npm start
 ```
@@ -82,12 +82,99 @@ src/
 - **Demo Mode**: localStorage with auto-save every 5 seconds
 - **Supabase Mode**: Real-time database with subscriptions
 
-## 🚀 Deployment Setup
+## 🚀 Local Development with Supabase
 
 ### Prerequisites
 - Node.js 18+ and npm
-- Supabase account and project
+- Supabase CLI (optional, for local development)
 - Git repository
+
+### Step 1: Install Supabase CLI (Optional)
+```bash
+npm install -g supabase
+```
+
+### Step 2: Environment Configuration
+```bash
+# Copy environment template
+cp env.example .env
+
+# Edit .env with your Supabase credentials
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
+REACT_APP_ENVIRONMENT=supabase
+REACT_APP_USE_SUPABASE=true
+```
+
+### Step 3: Local Supabase Development
+```bash
+# Start local Supabase instance
+npm run db:local:start
+
+# Apply migrations to local database
+npm run db:migrate:local
+
+# Seed local database with demo data
+npm run db:seed:local
+
+# Start development server with Supabase
+npm run dev:supabase
+```
+
+### Step 4: Database Management Commands
+```bash
+# View local Supabase status
+npm run db:local:status
+
+# Stop local Supabase
+npm run db:local:stop
+
+# Open Supabase Studio
+npm run db:studio
+
+# View logs
+npm run db:logs
+
+# Generate database diff
+npm run db:diff
+
+# Apply new migrations locally
+npm run db:migrate:local:new
+```
+
+## 🗄️ Database Schema
+
+### Tables
+- **`users`**: Core user entity with authentication and profile data
+- **`user_profiles`**: Extended user profile information
+- **`bets`**: Core betting entity with voting and outcome tracking
+- **`invitations`**: Friend invitation system for bets
+- **`credibility_logs`**: Audit trail for credibility changes
+- **`token_logs`**: Audit trail for token changes
+
+### Key Features
+- **Row Level Security (RLS)**: Secure by default with explicit policies
+- **Real-time subscriptions**: Live updates for chat and bet status
+- **Custom functions**: Token management, credibility system, friend management
+- **Automatic bet expiration**: 3-day voting window with annulment logic
+
+### Migrations
+All database changes are managed through versioned migrations:
+
+```bash
+supabase/migrations/
+├── 001_initial_schema.sql      # Base schema and tables
+├── 002_functions_and_policies.sql # Custom functions and RLS policies
+└── 003_seed_data.sql          # Initial demo data
+```
+
+## 🚀 Deployment Setup
+
+### Prerequisites
+- Supabase account and project
+- Vercel/Netlify account (for hosting)
+- GitHub repository
 
 ### Step 1: Supabase Project Setup
 
@@ -97,67 +184,50 @@ src/
    # Note down your project URL and anon key
    ```
 
-2. **Install Supabase CLI** (optional, for local development)
+2. **Link Local to Remote**
    ```bash
-   npm install -g supabase
+   supabase link --project-ref your-project-ref
    ```
 
-3. **Initialize Supabase** (if using CLI)
+3. **Apply Migrations to Remote**
    ```bash
-   supabase init
-   supabase start
+   npm run db:migrate:remote
    ```
 
 ### Step 2: Environment Configuration
 
-1. **Copy environment template**
+1. **Set Environment Variables**
    ```bash
-   cp env.example .env
-   ```
-
-2. **Edit `.env` file**
-   ```bash
-   REACT_APP_SUPABASE_URL=https://your-project-id.supabase.co
-   REACT_APP_SUPABASE_ANON_KEY=your-anon-key-here
+   # In your hosting platform (Vercel/Netlify)
+   NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
+   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
    REACT_APP_ENVIRONMENT=supabase
    REACT_APP_USE_SUPABASE=true
    ```
 
-### Step 3: Database Setup
+### Step 3: Deploy to Vercel
 
-1. **Run migrations** (using Supabase dashboard or CLI)
+1. **Install Vercel CLI**
    ```bash
-   # Option 1: Supabase Dashboard
-   # Go to SQL Editor and run the files in supabase/migrations/
-
-   # Option 2: Supabase CLI
-   supabase db push
-   ```
-
-2. **Seed initial data** (optional)
-   ```bash
-   # Run the seed file in Supabase SQL Editor
-   # File: supabase/seed/01_demo_data.sql
-   ```
-
-### Step 4: Build and Deploy
-
-1. **Build the app**
-   ```bash
-   npm run build
-   ```
-
-2. **Deploy to your preferred platform**
-   ```bash
-   # Vercel (recommended)
    npm install -g vercel
-   vercel --prod
+   ```
 
-   # Netlify
+2. **Deploy**
+   ```bash
+   npm run deploy:vercel
+   ```
+
+### Step 4: Deploy to Netlify
+
+1. **Install Netlify CLI**
+   ```bash
    npm install -g netlify-cli
-   netlify deploy --prod
+   ```
 
-   # Or upload build/ folder to any static hosting
+2. **Deploy**
+   ```bash
+   npm run deploy:netlify
    ```
 
 ## 🔧 Development
@@ -169,8 +239,9 @@ src/
 | `REACT_APP_ENVIRONMENT` | `demo` | Environment mode (`demo` or `supabase`) |
 | `REACT_APP_USE_SUPABASE` | `false` | Enable Supabase integration |
 | `REACT_APP_USE_DEMO_DATA` | `true` | Enable demo data fallback |
-| `REACT_APP_SUPABASE_URL` | - | Your Supabase project URL |
-| `REACT_APP_SUPABASE_ANON_KEY` | - | Your Supabase anonymous key |
+| `NEXT_PUBLIC_SUPABASE_URL` | - | Your Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | - | Your Supabase anonymous key |
+| `SUPABASE_SERVICE_ROLE_KEY` | - | Your Supabase service role key (server-only) |
 
 ### Adding New Features
 
@@ -192,6 +263,23 @@ const users = await dataService.getUsers();
 const bets = await dataService.getBets();
 ```
 
+## 🧪 Testing
+
+### Run Tests
+```bash
+npm test
+```
+
+### Smoke Tests
+```bash
+# Test Supabase connection and functionality
+node scripts/smoke-test.js
+```
+
+### Test Both Environments
+1. **Demo Mode**: `REACT_APP_ENVIRONMENT=demo npm start`
+2. **Supabase Mode**: `REACT_APP_ENVIRONMENT=supabase npm start`
+
 ## 📁 Project Structure
 
 ```
@@ -206,22 +294,33 @@ betmenew/
 │   ├── seed/                     # Seed data
 │   ├── functions/                # Edge functions (future)
 │   └── config.toml              # Supabase config
+├── scripts/                      # Utility scripts
+│   ├── deploy.sh                 # Deployment script
+│   └── smoke-test.js             # Smoke test script
+├── .github/                      # GitHub Actions
+│   └── workflows/                # CI/CD workflows
 ├── public/                       # Static assets
 ├── env.example                   # Environment template
 ├── package.json                  # Dependencies
 └── README.md                     # This file
 ```
 
-## 🧪 Testing
+## 🔒 Security & RLS
 
-### Run Tests
+### Row Level Security Policies
+- **Users**: Can view all users, update only their own profile
+- **Bets**: Can view all bets, update only if creator or participant
+- **Invitations**: Can view only sent/received invitations
+- **Logs**: Can view all credibility logs, own token logs only
+
+### Testing RLS
 ```bash
-npm test
-```
+# Run smoke tests to verify RLS policies
+node scripts/smoke-test.js
 
-### Test Both Environments
-1. **Demo Mode**: `REACT_APP_ENVIRONMENT=demo npm start`
-2. **Supabase Mode**: `REACT_APP_ENVIRONMENT=supabase npm start`
+# Check specific table access
+npm run db:studio
+```
 
 ## 🚨 Troubleshooting
 
@@ -230,7 +329,7 @@ npm test
 1. **Environment Variables Not Loading**
    - Ensure `.env` file is in the root directory
    - Restart the development server after changes
-   - Check variable names start with `REACT_APP_`
+   - Check variable names start with `NEXT_PUBLIC_` or `REACT_APP_`
 
 2. **Supabase Connection Issues**
    - Verify your project URL and anon key
@@ -242,11 +341,17 @@ npm test
    - Check for syntax errors in your code
    - Verify all imports are correct
 
+4. **Database Migration Issues**
+   - Check Supabase project status: `npm run db:local:status`
+   - Reset local database: `npm run db:migrate:local`
+   - Verify migration files are in correct order
+
 ### Getting Help
 
-- Check the [Supabase documentation](https://supabase.com/docs)
-- Review the [React documentation](https://react.dev)
-- Open an issue in this repository
+- **Supabase Issues**: Check [Supabase Docs](https://supabase.com/docs)
+- **Vercel Issues**: Check [Vercel Docs](https://vercel.com/docs)
+- **App Issues**: Check the main README.md in your repository
+- **Smoke Tests**: Run `node scripts/smoke-test.js` for diagnostics
 
 ## 📝 Contributing
 
@@ -255,6 +360,26 @@ npm test
 3. Commit your changes: `git commit -m 'Add amazing feature'`
 4. Push to the branch: `git push origin feature/amazing-feature`
 5. Open a Pull Request
+
+### Development Workflow
+```bash
+# Create feature branch
+git checkout -b feature/new-feature
+
+# Make changes and test locally
+npm run dev:supabase
+
+# Run tests
+npm test
+node scripts/smoke-test.js
+
+# Commit changes
+git add .
+git commit -m 'feat: add new feature'
+
+# Push and create PR
+git push origin feature/new-feature
+```
 
 ## 📄 License
 

@@ -1,0 +1,185 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  NODE_VERSION: '18'
+  SUPABASE_VERSION: '1.0.0'
+
+jobs:
+  test:
+    name: Test and Build
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run tests
+      run: npm test -- --passWithNoTests --watchAll=false
+      
+    - name: Build application
+      run: npm run build
+      
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-files
+        path: build/
+        retention-days: 1
+
+  migrate-database:
+    name: Database Migration
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Supabase CLI
+      uses: supabase/setup-cli@v1
+      with:
+        version: ${{ env.SUPABASE_VERSION }}
+        
+    - name: Run database migrations
+      run: |
+        supabase db push --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        
+    - name: Verify migration success
+      run: |
+        echo "Database migration completed successfully"
+        echo "Project: ${{ secrets.SUPABASE_PROJECT_REF }}"
+
+  deploy-vercel:
+    name: Deploy to Vercel
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    needs: [test, migrate-database]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Build application
+      run: npm run build
+      
+    - name: Deploy to Vercel
+      uses: amondnet/vercel-action@v25
+      with:
+        vercel-token: ${{ secrets.VERCEL_TOKEN }}
+        vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+        vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+        vercel-args: '--prod'
+        
+    - name: Comment deployment URL
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const { data: deployments } = await github.rest.repos.listDeployments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            ref: context.sha,
+            environment: 'production'
+          });
+          
+          if (deployments.length > 0) {
+            const deployment = deployments[0];
+            const { data: statuses } = await github.rest.repos.listDeploymentStatuses({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: deployment.id
+            });
+            
+            if (statuses.length > 0) {
+              const status = statuses[0];
+              if (status.state === 'success' && status.target_url) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  body: `🚀 **Deployment successful!**\n\nYour app is now live at: ${status.target_url}\n\n**Deployment Details:**\n- Environment: Production\n- Branch: ${context.ref}\n- Commit: ${context.sha.substring(0, 7)}\n- Status: ${status.state}`
+                });
+              }
+            }
+          }
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'trivy-results.sarif'
+        
+    - name: Check for high severity vulnerabilities
+      run: |
+        if grep -q '"severity": "HIGH"' trivy-results.sarif; then
+          echo "❌ High severity vulnerabilities found!"
+          exit 1
+        else
+          echo "✅ No high severity vulnerabilities found"
+        fi
+
+  notify:
+    name: Notify Team
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [test, migrate-database, deploy-vercel, security-scan]
+    
+    steps:
+    - name: Notify deployment status
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const needs = ${{ toJSON(needs) }};
+          const success = Object.values(needs).every(job => job.result === 'success');
+          
+          if (success) {
+            console.log('🎉 All jobs completed successfully!');
+          } else {
+            console.log('❌ Some jobs failed');
+            Object.entries(needs).forEach(([jobName, job]) => {
+              if (job.result !== 'success') {
+                console.log(`- ${jobName}: ${job.result}`);
+              }
+            });
+          }

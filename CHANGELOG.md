@@ -5,80 +5,118 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.2.0] - 2024-01-XX
+## [Unreleased]
 
 ### Added
-- **Dual-Environment Architecture**: Complete separation between demo and Supabase modes
-- **Demo Data Service**: Full local storage implementation with auto-save functionality
-- **Unified Data Service**: Facade pattern for environment-agnostic data operations
-- **Environment Configuration**: Feature flags and environment detection system
-- **Environment Switcher**: UI component for easy demo/Supabase mode switching
-- **Toast Notifications**: Global error and success notification system
-- **Loading States**: Improved loading indicators throughout the app
-- **Comprehensive Documentation**: Complete architecture and setup guides
+- Comprehensive Supabase integration setup
+- Database migrations with versioned schema
+- Row Level Security (RLS) policies
+- Custom database functions for token and credibility management
+- Real-time subscriptions for live updates
+- GitHub Actions CI/CD pipeline
+- Local Supabase development environment
+- Smoke test scripts for database validation
+- Comprehensive documentation and setup guides
 
 ### Changed
-- **BetMeApp Refactoring**: Migrated from direct Supabase calls to unified data service
-- **Component Updates**: All components now work with both demo and Supabase data
-- **Error Handling**: Improved error handling with user-friendly notifications
-- **Data Persistence**: localStorage persistence with 5-second auto-save in demo mode
-- **User Experience**: Better loading states and feedback throughout the app
+- Updated environment variable naming to use `NEXT_PUBLIC_` prefix
+- Enhanced package.json with database management scripts
+- Improved error handling and validation
+- Refactored service layer for better separation of concerns
 
 ### Fixed
-- **Friends Display**: Fixed friends not showing in CreateBetView and ProfileView
-- **Credibility Display**: Fixed credibility showing "/100" instead of actual values
-- **Bet Creation**: Fixed create bet functionality not working
-- **Active Bets Count**: Fixed incorrect active bets display in ProfileView
-- **ESLint Warnings**: Removed unused imports and variables
-- **Duplicate Functions**: Fixed duplicate `getCredibilityColor` function
+- Token distribution logic in bet completion
+- Credibility system double-punishment bug
+- User state synchronization issues
+- Chat message immediate display
+- Friend invitation system reliability
 
-### Technical Improvements
-- **Service Layer**: Clean separation of concerns with dedicated service modules
-- **Configuration Management**: Centralized environment and feature configuration
-- **Code Organization**: Better file structure with services directory
-- **Type Safety**: Improved data consistency across environments
-- **Performance**: Optimized data loading and state management
-
-### Documentation
-- **README.md**: Complete rewrite with dual-environment architecture overview
-- **DEMO_MODE_README.md**: Comprehensive documentation for demo mode features
-- **SETUP.md**: Step-by-step environment setup instructions
-- **.env.example**: Template for environment variable configuration
-- **CHANGELOG.md**: This changelog file
-
-### Environment Variables
-- `REACT_APP_ENVIRONMENT`: Environment mode (`demo` or `supabase`)
-- `REACT_APP_USE_SUPABASE`: Enable Supabase integration
-- `REACT_APP_USE_DEMO_DATA`: Enable demo data fallback
-- `REACT_APP_ENABLE_REALTIME`: Enable real-time subscriptions
-- `REACT_APP_DEMO_AUTO_SAVE_INTERVAL`: Auto-save interval in milliseconds
-- `REACT_APP_DEMO_PERSIST_TO_LOCALSTORAGE`: Enable localStorage persistence
-
-## [0.1.0] - 2024-01-XX
+## [1.2.0] - 2024-12-27
 
 ### Added
-- Initial Supabase integration
+- 3-day voting window with automatic bet expiration
+- Bet annulment system with token refunds and penalties
+- Majority credibility punishment for voting against consensus
+- Comprehensive credibility logging system
+- Token transaction history with detailed logging
+- Friend invitation system with shareable links
+- User profile management with photo uploads
+- Real-time chat system within bets
+- Mobile-responsive design improvements
+
+### Changed
+- Enhanced bet lifecycle management
+- Improved token economy with immediate deductions
+- Better state management and synchronization
+- Updated UI components for new features
+- Enhanced error handling and user feedback
+
+### Fixed
+- Multiple token calculation bugs
+- State update inconsistencies
+- User interface responsiveness issues
+- Data persistence reliability
+
+## [1.1.0] - 2024-12-20
+
+### Added
 - Basic betting functionality
+- User authentication system
+- Friend management
+- Token-based economy
+- Basic credibility system
+
+### Changed
+- Initial app structure
+- Core betting logic
+- User interface components
+
+### Fixed
+- Basic functionality issues
+- User experience improvements
+
+## [1.0.0] - 2024-12-15
+
+### Added
+- Initial BetMe app release
+- Basic React application structure
+- Core betting concepts
 - User management system
-- Real-time database features
 - Basic UI components
 
 ---
 
-## Migration Guide
+## Version History
 
-### From v0.1.0 to v1.2.0
+- **1.0.0**: Initial release with basic functionality
+- **1.1.0**: Enhanced betting system and user management
+- **1.2.0**: Advanced features including voting windows and credibility system
+- **Unreleased**: Complete Supabase integration and production deployment setup
 
-1. **Environment Setup**: The app now defaults to demo mode. No environment variables needed for development.
-2. **Data Service**: All data operations now go through `dataService` instead of direct Supabase calls.
-3. **Configuration**: Use `src/config.js` for environment-specific settings.
-4. **Demo Mode**: Full functionality available without database setup.
+## Migration Notes
 
-### Breaking Changes
-- None - all existing Supabase functionality is preserved and can be re-enabled via environment variables.
+### From 1.2.0 to Unreleased
+- New environment variables required (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`)
+- Database schema changes require running migrations
+- Service layer refactoring may affect custom integrations
 
-### New Features
-- Demo mode with localStorage persistence
-- Environment switching capability
-- Improved error handling and user feedback
-- Comprehensive documentation and setup guides 
+### From 1.1.0 to 1.2.0
+- New database fields added for voting system
+- Token calculation logic updated
+- Credibility system enhanced with logging
+
+### From 1.0.0 to 1.1.0
+- Major architectural changes
+- New service layer implementation
+- Enhanced state management
+
+## Support
+
+For questions about specific versions or migration assistance:
+- Check the [README.md](README.md) for detailed setup instructions
+- Review [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines
+- Open an issue for specific problems or questions
+
+---
+
+**Note**: This changelog follows the [Keep a Changelog](https://keepachangelog.com/) format and [Semantic Versioning](https://semver.org/) principles. 

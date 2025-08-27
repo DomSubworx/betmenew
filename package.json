@@ -19,7 +19,21 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "db:local:start": "supabase start",
+    "db:local:stop": "supabase stop",
+    "db:local:status": "supabase status",
+    "db:migrate:local": "supabase db reset",
+    "db:migrate:local:new": "supabase db push",
+    "db:seed:local": "supabase db reset --db-only",
+    "db:diff": "supabase db diff",
+    "db:migrate:remote": "supabase db push",
+    "db:studio": "supabase studio",
+    "db:logs": "supabase logs",
+    "db:setup": "npm run db:local:start && npm run db:migrate:local",
+    "dev:supabase": "npm run db:local:start && npm start",
+    "deploy:vercel": "vercel --prod",
+    "deploy:netlify": "netlify deploy --prod"
   },
   "eslintConfig": {
     "extends": [
