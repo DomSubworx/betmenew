@@ -1,18 +1,23 @@
 // Configuration file for BetMe app
 // In production, these should be environment variables
 
+// Debug logging to see what's being read
+console.log('🔍 Environment variables check:');
+console.log('🔍 REACT_APP_SUPABASE_URL:', process.env.REACT_APP_SUPABASE_URL);
+console.log('🔍 REACT_APP_SUPABASE_ANON_KEY:', process.env.REACT_APP_SUPABASE_ANON_KEY ? `${process.env.REACT_APP_SUPABASE_ANON_KEY.substring(0, 20)}...` : 'undefined');
+
 export const config = {
-  SUPABASE_URL: 'https://absqrdsvpsztuwmsrmpx.supabase.co',
-  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFic3FyZHN2cHN6dHV3bXNybXB4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5NzY0NjYsImV4cCI6MjA2OTU1MjQ2Nn0.fAsbdNBnm__4Sg4ojKrCOEg5KaplGSUAtbFeehMmZLI',
+  SUPABASE_URL: process.env.REACT_APP_SUPABASE_URL || 'YOUR_ACTUAL_SUPABASE_URL_HERE',
+  SUPABASE_ANON_KEY: process.env.REACT_APP_SUPABASE_ANON_KEY || 'YOUR_ACTUAL_SUPABASE_ANON_KEY_HERE',
   
-  // Environment configuration
-  ENVIRONMENT: process.env.REACT_APP_ENVIRONMENT || 'demo', // 'demo' | 'supabase'
+  // Environment configuration - FORCE SUPABASE MODE
+  ENVIRONMENT: 'supabase', // 'demo' | 'supabase'
   
-  // Feature flags
+  // Feature flags - FORCE SUPABASE MODE
   FEATURES: {
-    USE_SUPABASE: process.env.REACT_APP_USE_SUPABASE === 'true',
-    USE_DEMO_DATA: process.env.REACT_APP_USE_DEMO_DATA !== 'false',
-    ENABLE_REALTIME: process.env.REACT_APP_ENABLE_REALTIME === 'true',
+    USE_SUPABASE: true,
+    USE_DEMO_DATA: false,
+    ENABLE_REALTIME: true,
   },
   
   // Demo data configuration

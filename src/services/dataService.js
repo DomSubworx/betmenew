@@ -6,14 +6,18 @@ import { supabaseService } from '../supabaseService.js';
 export const dataService = {
   // Initialize the appropriate service
   initialize() {
+    console.log('🔧 DataService.initialize() called');
+    console.log('🔧 isDemoMode():', isDemoMode());
+    console.log('🔧 shouldUseSupabase():', shouldUseSupabase());
+    
     if (isDemoMode()) {
       demoDataService.initialize();
-      console.log('Using demo data service');
+      console.log('✅ Using demo data service');
     } else if (shouldUseSupabase()) {
-      console.log('Using Supabase service');
+      console.log('✅ Using Supabase service');
     } else {
       demoDataService.initialize();
-      console.log('Falling back to demo data service');
+      console.log('⚠️  Falling back to demo data service');
     }
   },
 
@@ -26,10 +30,20 @@ export const dataService = {
 
   // User operations
   async getUsers() {
+    console.log('🔧 getUsers() called');
+    console.log('🔧 isDemoMode():', isDemoMode());
+    
     if (isDemoMode()) {
-      return demoDataService.getUsers();
+      console.log('📊 Getting users from demo service');
+      const users = await demoDataService.getUsers();
+      console.log('📊 Demo users returned:', users.length);
+      return users;
     }
-    return supabaseService.getUsers();
+    
+    console.log('📊 Getting users from Supabase service');
+    const users = await supabaseService.getUsers();
+    console.log('📊 Supabase users returned:', users.length);
+    return users;
   },
 
   async getUserByUsername(username) {

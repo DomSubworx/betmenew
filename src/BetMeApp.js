@@ -26,7 +26,7 @@ export default function BetMeApp() {
   // Data state - all synchronized with data service
   const [users, setUsers] = useState([]);
   const [bets, setBets] = useState([]);
-  const [invitations, setInvitations] = useState([]);
+  const [invitations, setInvitations] = useState([]); // Initialize as empty array
   const [userProfiles, setUserProfiles] = useState({});
   const [credibilityLogs, setCredibilityLogs] = useState([]);
   const [tokenLogs, setTokenLogs] = useState([]);
@@ -149,6 +149,7 @@ export default function BetMeApp() {
       
       setInvitations(pendingInvitations);
       console.log(`✅ Loaded ${pendingInvitations.length} pending invitations for user ${userId}`);
+      console.log('🎯 Final invitations state set to:', pendingInvitations);
       
       // 🎯 FIX: Double-check token sync after loading invitations (with safety check)
       if (currentUser && currentUser.id === userId && users.length > 0) {
@@ -164,6 +165,8 @@ export default function BetMeApp() {
     } catch (error) {
       console.error('❌ Error loading invitations:', error);
       showError('Failed to load invitations.');
+      // Set empty array on error to prevent undefined state
+      setInvitations([]);
     }
   }, [showError, currentUser, users]);
 
@@ -263,8 +266,13 @@ export default function BetMeApp() {
     });
 
     return () => {
-      betsSubscription();
-      invitationsSubscription();
+      // Fix: Properly unsubscribe from Supabase channels
+      if (betsSubscription && typeof betsSubscription.unsubscribe === 'function') {
+        betsSubscription.unsubscribe();
+      }
+      if (invitationsSubscription && typeof invitationsSubscription.unsubscribe === 'function') {
+        invitationsSubscription.unsubscribe();
+      }
     };
   }, [currentUser]);
 
@@ -1405,7 +1413,13 @@ export default function BetMeApp() {
             isLoading={isLoading}
             onLogout={handleLogout}
             onCreateBet={() => setCurrentView('create')}
-            onViewInvitations={() => setCurrentView('invitations')}
+            onViewInvitations={async () => {
+              // Ensure invitations are loaded before showing the view
+              if (currentUser) {
+                await loadUserInvitations(currentUser.id);
+              }
+              setCurrentView('invitations');
+            }}
             onViewCredibility={() => {
               setPreviousView('home');
               setCurrentView('credibility');

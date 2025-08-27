@@ -4,24 +4,50 @@ import { supabase } from './supabaseClient.js';
 export const supabaseService = {
   // Get all users
   async getUsers() {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .order('username');
+    console.log('🔌 Supabase: getUsers() called');
+    console.log('🔌 Supabase client:', supabase);
+    console.log('🔌 Supabase URL:', supabase.supabaseUrl);
     
-    if (error) {
-      console.error('Error fetching users:', error);
+    try {
+      console.log('🔌 Attempting to fetch users...');
+      
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .order('username');
+      
+      console.log('🔌 Supabase response:', { data, error });
+      
+      if (error) {
+        console.error('❌ Supabase error fetching users:', error);
+        console.error('❌ Error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+        return [];
+      }
+      
+      console.log('✅ Supabase users fetched successfully:', data?.length || 0);
+      
+      return data.map(user => ({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        tokens: user.tokens,
+        credibility: user.credibility,
+        friends: user.friends || []
+      }));
+    } catch (err) {
+      console.error('❌ Supabase exception in getUsers:', err);
+      console.error('❌ Exception details:', {
+        name: err.name,
+        message: err.message,
+        stack: err.stack
+      });
       return [];
     }
-    
-    return data.map(user => ({
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      tokens: user.tokens,
-      credibility: user.credibility,
-      friends: user.friends || []
-    }));
   },
 
   // Get user by username
@@ -100,12 +126,16 @@ export const supabaseService = {
       creatorId: bet.creator_id,
       participants: bet.participants || [],
       participantBets: bet.participant_bets || {},
-      stakeTokens: bet.stake_tokens,
+      stakeTokens: bet.stake_tokens || 0,
       status: bet.status,
       votes: bet.votes || {},
       winner: bet.winner,
       chatMessages: bet.chat_messages || [],
-      createdAt: bet.created_at
+      votingStartTime: bet.voting_start_time,
+      votedWithinWindow: bet.voted_within_window || {},
+      majorityPunishmentApplied: bet.majority_punishment_applied || false,
+      createdAt: bet.created_at,
+      updatedAt: bet.updated_at
     }));
   },
 
@@ -118,7 +148,9 @@ export const supabaseService = {
         description: betData.description,
         creator_id: betData.creatorId,
         participants: betData.participants,
-        stake_tokens: betData.stakeTokens
+        participant_bets: betData.participantBets,
+        stake_tokens: betData.stakeTokens,
+        status: betData.status
       })
       .select()
       .single();
@@ -133,31 +165,26 @@ export const supabaseService = {
       title: data.title,
       description: data.description,
       creatorId: data.creator_id,
-      participants: data.participants || [],
-      participantBets: data.participant_bets || {},
+      participants: data.participants,
+      participantBets: data.participant_bets,
       stakeTokens: data.stake_tokens,
       status: data.status,
-      votes: data.votes || {},
+      votes: data.votes,
       winner: data.winner,
-      chatMessages: data.chat_messages || [],
-      createdAt: data.created_at
+      chatMessages: data.chat_messages,
+      votingStartTime: data.voting_start_time,
+      votedWithinWindow: data.voted_within_window,
+      majorityPunishmentApplied: data.majority_punishment_applied,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at
     };
   },
 
-  // Update bet
+  // Update a bet
   async updateBet(betId, updates) {
     const { data, error } = await supabase
       .from('bets')
-      .update({
-        title: updates.title,
-        description: updates.description,
-        participants: updates.participants,
-        participant_bets: updates.participantBets,
-        status: updates.status,
-        votes: updates.votes,
-        winner: updates.winner,
-        chat_messages: updates.chatMessages
-      })
+      .update(updates)
       .eq('id', betId)
       .select()
       .single();
@@ -172,59 +199,47 @@ export const supabaseService = {
       title: data.title,
       description: data.description,
       creatorId: data.creator_id,
-      participants: data.participants || [],
-      participantBets: data.participant_bets || {},
+      participants: data.participants,
+      participantBets: data.participant_bets,
       stakeTokens: data.stake_tokens,
       status: data.status,
-      votes: data.votes || {},
+      votes: data.votes,
       winner: data.winner,
-      chatMessages: data.chat_messages || [],
-      createdAt: data.created_at
+      chatMessages: data.chat_messages,
+      votingStartTime: data.voting_start_time,
+      votedWithinWindow: data.voted_within_window,
+      majorityPunishmentApplied: data.majority_punishment_applied,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at
     };
   },
 
-  // Get invitations for a user
-  async getInvitations(userId) {
-    const { data, error } = await supabase
+  // Get invitations
+  async getInvitations(userId = null) {
+    let query = supabase
       .from('invitations')
-      .select(`
-        *,
-        bets!inner(*),
-        from_user:users!invitations_from_user_id_fkey(username),
-        to_user:users!invitations_to_user_id_fkey(username)
-      `)
-      .eq('to_user_id', userId)
-      .eq('status', 'pending')
+      .select('*')
       .order('created_at', { ascending: false });
+    
+    if (userId) {
+      query = query.eq('to_user_id', userId);
+    }
+    
+    const { data, error } = await query;
     
     if (error) {
       console.error('Error fetching invitations:', error);
       return [];
     }
     
-    return data.map(inv => ({
-      id: inv.id,
-      betId: inv.bet_id,
-      fromUserId: inv.from_user_id,
-      toUserId: inv.to_user_id,
-      status: inv.status,
-      createdAt: inv.created_at,
-      bet: {
-        id: inv.bets.id,
-        title: inv.bets.title,
-        description: inv.bets.description,
-        creatorId: inv.bets.creator_id,
-        participants: inv.bets.participants || [],
-        participantBets: inv.bets.participant_bets || {},
-        stakeTokens: inv.bets.stake_tokens,
-        status: inv.bets.status,
-        votes: inv.bets.votes || {},
-        winner: inv.bets.winner,
-        chatMessages: inv.bets.chat_messages || [],
-        createdAt: inv.bets.created_at
-      },
-      fromUsername: inv.from_user?.username,
-      toUsername: inv.to_user?.username
+    return data.map(invitation => ({
+      id: invitation.id,
+      betId: invitation.bet_id,
+      fromUserId: invitation.from_user_id,
+      toUserId: invitation.to_user_id,
+      status: invitation.status,
+      createdAt: invitation.created_at,
+      updatedAt: invitation.updated_at
     }));
   },
 
@@ -235,7 +250,8 @@ export const supabaseService = {
       .insert({
         bet_id: invitationData.betId,
         from_user_id: invitationData.fromUserId,
-        to_user_id: invitationData.toUserId
+        to_user_id: invitationData.toUserId,
+        status: invitationData.status
       })
       .select()
       .single();
@@ -251,7 +267,8 @@ export const supabaseService = {
       fromUserId: data.from_user_id,
       toUserId: data.to_user_id,
       status: data.status,
-      createdAt: data.created_at
+      createdAt: data.created_at,
+      updatedAt: data.updated_at
     };
   },
 
@@ -265,7 +282,7 @@ export const supabaseService = {
       .single();
     
     if (error) {
-      console.error('Error updating invitation:', error);
+      console.error('Error updating invitation status:', error);
       return null;
     }
     
@@ -275,7 +292,8 @@ export const supabaseService = {
       fromUserId: data.from_user_id,
       toUserId: data.to_user_id,
       status: data.status,
-      createdAt: data.created_at
+      createdAt: data.created_at,
+      updatedAt: data.updated_at
     };
   },
 
@@ -293,38 +311,19 @@ export const supabaseService = {
     const profiles = {};
     data.forEach(profile => {
       profiles[profile.user_id] = {
+        id: profile.id,
+        userId: profile.user_id,
         profilePhoto: profile.profile_photo,
-        inviteLinks: profile.invite_links || {}
+        inviteLinks: profile.invite_links || {},
+        createdAt: profile.created_at,
+        updatedAt: profile.updated_at
       };
     });
     
     return profiles;
   },
 
-  // Update user profile
-  async updateUserProfile(userId, profileData) {
-    const { data, error } = await supabase
-      .from('user_profiles')
-      .upsert({
-        user_id: userId,
-        profile_photo: profileData.profilePhoto,
-        invite_links: profileData.inviteLinks
-      })
-      .select()
-      .single();
-    
-    if (error) {
-      console.error('Error updating user profile:', error);
-      return null;
-    }
-    
-    return {
-      profilePhoto: data.profile_photo,
-      inviteLinks: data.invite_links || {}
-    };
-  },
-
-  // Get credibility logs for a user
+  // Get credibility logs
   async getCredibilityLogs(userId) {
     const { data, error } = await supabase
       .from('credibility_logs')
@@ -348,6 +347,35 @@ export const supabaseService = {
       reason: log.reason,
       oldCredibility: log.old_credibility,
       newCredibility: log.new_credibility,
+      timestamp: log.created_at,
+      betTitle: log.bets?.title
+    }));
+  },
+
+  // Get token logs
+  async getTokenLogs(userId) {
+    const { data, error } = await supabase
+      .from('token_logs')
+      .select(`
+        *,
+        bets(title)
+      `)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error('Error fetching token logs:', error);
+      return [];
+    }
+    
+    return data.map(log => ({
+      id: log.id,
+      userId: log.user_id,
+      betId: log.bet_id,
+      change: log.change_amount,
+      reason: log.reason,
+      oldTokens: log.old_tokens,
+      newTokens: log.new_tokens,
       timestamp: log.created_at,
       betTitle: log.bets?.title
     }));
@@ -402,6 +430,167 @@ export const supabaseService = {
     return true;
   },
 
+  // Process bet annulment
+  async processBetAnnulment(betId) {
+    console.log('🔌 Supabase: processBetAnnulment() called for bet:', betId);
+    
+    try {
+      const { data, error } = await supabase
+        .rpc('process_bet_annulment', {
+          bet_uuid: betId
+        });
+      
+      console.log('🔌 Supabase processBetAnnulment response:', { data, error });
+      
+      if (error) {
+        console.error('❌ Supabase error processing bet annulment:', error);
+        return false;
+      }
+      
+      console.log('✅ Supabase bet annulment processed successfully');
+      return true;
+    } catch (err) {
+      console.error('❌ Supabase exception in processBetAnnulment:', err);
+      return false;
+    }
+  },
+
+  // Check expired voting bets
+  async checkExpiredVotingBets() {
+    console.log('🔌 Supabase: checkExpiredVotingBets() called');
+    
+    try {
+      const { data, error } = await supabase
+        .rpc('check_expired_voting_bets');
+      
+      console.log('🔌 Supabase checkExpiredVotingBets response:', { data, error });
+      
+      if (error) {
+        console.error('❌ Supabase error checking expired voting bets:', error);
+        return 0;
+      }
+      
+      console.log('✅ Supabase expired voting bets checked successfully:', data);
+      return data || 0;
+    } catch (err) {
+      console.error('❌ Supabase exception in checkExpiredVotingBets:', err);
+      return 0;
+    }
+  },
+
+  // Add credibility log
+  async addCredibilityLog(userId, change, reason, betId = null) {
+    console.log('🔌 Supabase: addCredibilityLog() called');
+    
+    try {
+      const { data, error } = await supabase
+        .from('credibility_logs')
+        .insert({
+          user_id: userId,
+          bet_id: betId,
+          change_amount: change,
+          reason: reason,
+          old_credibility: 0, // Will be updated by the function
+          new_credibility: 0  // Will be updated by the function
+        })
+        .select()
+        .single();
+      
+      console.log('🔌 Supabase addCredibilityLog response:', { data, error });
+      
+      if (error) {
+        console.error('❌ Supabase error adding credibility log:', error);
+        return false;
+      }
+      
+      console.log('✅ Supabase credibility log added successfully');
+      return true;
+    } catch (err) {
+      console.error('❌ Supabase exception in addCredibilityLog:', err);
+      return false;
+    }
+  },
+
+  // Clear all friends for testing
+  async clearAllFriends(userId) {
+    console.log('🔌 Supabase: clearAllFriends() called for user:', userId);
+    
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ friends: [] })
+        .eq('id', userId);
+      
+      if (error) {
+        console.error('❌ Supabase error clearing friends:', error);
+        return false;
+      }
+      
+      console.log('✅ Supabase friends cleared successfully');
+      return true;
+    } catch (err) {
+      console.error('❌ Supabase exception in clearAllFriends:', err);
+      return false;
+    }
+  },
+
+  // Get user friends
+  async getUserFriends(userId) {
+    console.log('🔌 Supabase: getUserFriends() called for user:', userId);
+    
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('friends')
+        .eq('id', userId)
+        .single();
+      
+      if (error) {
+        console.error('❌ Supabase error getting user friends:', error);
+        return [];
+      }
+      
+      console.log('✅ Supabase user friends retrieved successfully:', data?.friends || []);
+      return data?.friends || [];
+    } catch (err) {
+      console.error('❌ Supabase exception in getUserFriends:', err);
+      return [];
+    }
+  },
+
+  // Add bet result log
+  async addBetResultLog(userId, change, reason, betId = null) {
+    console.log('🔌 Supabase: addBetResultLog() called');
+    
+    try {
+      const { data, error } = await supabase
+        .from('token_logs')
+        .insert({
+          user_id: userId,
+          bet_id: betId,
+          change_amount: change,
+          reason: reason,
+          old_tokens: 0, // Will be updated by the function
+          new_tokens: 0  // Will be updated by the function
+        })
+        .select()
+        .single();
+      
+      console.log('🔌 Supabase addBetResultLog response:', { data, error });
+      
+      if (error) {
+        console.error('❌ Supabase error adding bet result log:', error);
+        return false;
+      }
+      
+      console.log('✅ Supabase bet result log added successfully');
+      return true;
+    } catch (err) {
+      console.error('❌ Supabase exception in addBetResultLog:', err);
+      return false;
+    }
+  },
+
   // Subscribe to real-time updates
   subscribeToBets(callback) {
     return supabase
@@ -437,4 +626,4 @@ export const supabaseService = {
       }, callback)
       .subscribe();
   }
-}; 
+};

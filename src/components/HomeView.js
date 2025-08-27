@@ -29,9 +29,9 @@ function HomeView({ currentUser, bets, users, invitations, onLogout, onCreateBet
   }, [bets]);
 
   const userBets = bets.filter(bet => bet.participants.includes(currentUser.id));
-  const pendingInvitations = invitations.filter(inv => 
+  const pendingInvitations = invitations ? invitations.filter(inv => 
     inv.toUserId === currentUser.id && inv.status === 'pending'
-  ).length;
+  ).length : 0;
 
   // Helper function to check if user needs to vote
   const needsToVote = (bet) => {

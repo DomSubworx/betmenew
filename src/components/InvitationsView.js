@@ -4,6 +4,17 @@ import { ArrowLeft, Users, Check, X } from 'lucide-react';
 import { getUserName } from '../utils.js';
 
 function InvitationsView({ currentUser, invitations, bets, users, onBack, onRespond }) {
+  // Debug logging to see what we're receiving
+  console.log('🔍 InvitationsView Debug:', {
+    currentUser: currentUser?.username,
+    invitations: invitations,
+    invitationsType: typeof invitations,
+    invitationsLength: invitations?.length,
+    isArray: Array.isArray(invitations),
+    bets: bets?.length,
+    users: users?.length
+  });
+
   const getBetDetails = (betId) => {
     const bet = bets.find(b => b.id === betId);
     if (!bet) return null;
@@ -16,6 +27,38 @@ function InvitationsView({ currentUser, invitations, bets, users, onBack, onResp
       participants: bet.participants || []
     };
   };
+
+  // Comprehensive safety check: ensure invitations is a valid array
+  if (!invitations || !Array.isArray(invitations)) {
+    console.log('⚠️ InvitationsView: invitations is not a valid array, showing loading state');
+    return (
+      <motion.div className="max-w-md mx-auto bg-white min-h-screen" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+        <div className="bg-secondary-500 text-white p-6">
+          <div className="flex items-center space-x-4">
+            <button 
+              onClick={onBack}
+              className="text-white hover:text-secondary-100"
+            >
+              <ArrowLeft size={24} />
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold">Invitations</h1>
+              <p className="text-secondary-100 text-sm">Loading...</p>
+            </div>
+          </div>
+        </div>
+
+        <motion.div className="p-6 text-center" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+          <Users size={64} className="mx-auto mb-4 text-gray-300" />
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">Loading Invitations</h2>
+          <p className="text-gray-600">Please wait while we load your invitations...</p>
+          <p className="text-xs text-gray-400 mt-2">
+            Debug: {typeof invitations} - {invitations ? 'exists' : 'null/undefined'}
+          </p>
+        </motion.div>
+      </motion.div>
+    );
+  }
 
   if (invitations.length === 0) {
     return (
